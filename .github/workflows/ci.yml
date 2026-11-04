@@ -1,0 +1,83 @@
+name: Record Book V2 CI & Android APK Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+  NEXT_PUBLIC_SUPABASE_URL: 'https://xelxvojazyscbounzajs.supabase.co'
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_1BG03u4BQDYfpV3nw99WKw_z0qen4Gi'
+
+jobs:
+  verify-and-build-web:
+    name: V2 Lint, Unit Tests & Web Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run V2 Unit Tests (Financial Engine & NestJS Backend)
+        run: npx --yes tsx --test src/v2/engine/financialEngine.test.ts src/backend/appModule.test.ts
+
+      - name: Build Record Book V2 Static Bundle
+        run: npm run build
+
+      - name: Upload Web Static Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: record-book-v2-web-out
+          path: out
+
+  build-android-apk:
+    name: Build Record Book V2 Android APK
+    runs-on: ubuntu-latest
+    needs: verify-and-build-web
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Java 21 for Android Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build Web Assets & Sync Capacitor Android
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Assemble Android Debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: record-book-v2-android-apk
+          path: android/app/build/outputs/apk/debug/*.apk
