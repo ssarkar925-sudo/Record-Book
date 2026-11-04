@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  CheckCircle2,
   Cloud,
   Copy,
   Database,
@@ -12,6 +11,7 @@ import {
   FileText,
   GitBranch,
   RefreshCw,
+  RotateCcw,
   Upload,
 } from 'lucide-react';
 import { useV2Store } from '@/v2/store/useV2Store';
@@ -48,6 +48,8 @@ export function ReportsSyncDocsModule() {
     signOutSupabase,
     exportFullBackupJson,
     importFullBackupJson,
+    loadSampleWorkspaceData,
+    clearAllWorkspaceData,
   } = useV2Store();
 
   const [activeSubTab, setActiveSubTab] = useState<
@@ -263,18 +265,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${V2_PRODUCTION_SUPABASE_PUBLISHABLE_KEY}`;
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      schemaCheck.tablesReady ? 'bg-emerald-600' : 'bg-amber-600'
-                    }`}
-                  />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    {schemaCheck.tablesReady
-                      ? 'Supabase V2 Database Tables Ready'
-                      : 'Step 1 Required: Run V2 SQL Schema in New Supabase Project'}
-                  </span>
-                </div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  {schemaCheck.tablesReady
+                    ? 'Supabase V2 Database Tables Ready (HTTP 200 Verified)'
+                    : 'Step 1 Required: Run V2 SQL Schema in New Supabase Project'}
+                </p>
                 <p className="mt-1 text-sm font-medium text-slate-800">
                   {schemaCheck.message}
                 </p>
@@ -629,18 +624,37 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${V2_PRODUCTION_SUPABASE_PUBLISHABLE_KEY}`;
 
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-5">
             <h2 className="text-base font-bold text-slate-900">
-              Full V2 Workspace Snapshot Backup
+              Workspace Data & Portable JSON Backup
             </h2>
             <p className="text-xs text-slate-500">
-              Export or restore all 9 modules (Accounts, Ledger, Dues, Cards, Sheets, Notes, Vault) as a portable JSON file.
+              Export or restore all 9 modules, load sample financial data, or reset the workspace to a clean ₹0.00 state.
             </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                variant="outline"
+                onClick={() => void loadSampleWorkspaceData()}
+                className="gap-1.5 border-indigo-200 bg-[#EEF2FF]/60 text-indigo-950 hover:bg-indigo-100/70"
+              >
+                <Database className="h-4 w-4 text-indigo-600" />
+                <span>Load Sample Data</span>
+              </Button>
+              <Button
+                variant="rose"
+                onClick={() => void clearAllWorkspaceData()}
+                className="gap-1.5"
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span>Reset All to ₹0</span>
+              </Button>
+            </div>
+
             <Button
               variant="emerald"
               onClick={handleDownloadBackup}
               className="w-full gap-2"
             >
               <Download className="h-4 w-4" />
-              Download Full V2 JSON Backup
+              <span>Download Full V2 JSON Backup</span>
             </Button>
 
             <div className="border-t border-slate-100 pt-4">
@@ -660,7 +674,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${V2_PRODUCTION_SUPABASE_PUBLISHABLE_KEY}`;
                 className="mt-2 w-full gap-2"
               >
                 <Upload className="h-4 w-4" />
-                Restore From JSON Snapshot
+                <span>Restore From JSON Snapshot</span>
               </Button>
             </div>
           </div>

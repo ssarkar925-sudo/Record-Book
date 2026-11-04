@@ -141,6 +141,7 @@ export function V2AppShell() {
     entries,
     dues,
     cards,
+    userEmail,
     syncStatus,
     setActiveModule,
     setScopeFilter,
@@ -215,30 +216,26 @@ export function V2AppShell() {
       {/* Sticky Daylight Top Bar (3-Zone Contract) */}
       <header className="sticky top-0 z-30 h-16 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">
-          {/* Zone 1: Brand Wordmark + Active Module Breadcrumb */}
-          <div className="flex items-center gap-3">
+          {/* Zone 1: Brand Wordmark & Contextual Module Breadcrumb */}
+          <div className="flex items-center gap-2.5 whitespace-nowrap shrink-0">
             <button
               type="button"
               onClick={() => setActiveModule('overview')}
               className="flex items-center gap-2.5 text-left"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-200 bg-[#EEF2FF] font-mono text-sm font-bold text-indigo-700">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-[#EEF2FF] font-mono text-xs font-bold text-indigo-700">
                 RB
               </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-bold tracking-tight text-slate-900">
-                    Record Book
-                  </span>
-                  <span className="font-mono text-[11px] font-semibold text-indigo-600">
-                    V2.0
-                  </span>
-                </div>
-                <p className="hidden text-[11px] text-slate-500 sm:block">
-                  {activeMeta.label}
-                </p>
-              </div>
+              <span className="text-sm font-bold tracking-tight text-slate-900">
+                Record Book
+              </span>
             </button>
+            <span aria-hidden="true" className="hidden text-slate-300 sm:inline">
+              /
+            </span>
+            <span className="hidden text-xs font-medium text-slate-600 sm:inline">
+              {activeMeta.label}
+            </span>
           </div>
 
           {/* Zone 2: Sphere Scope Selector + Global Search */}
@@ -283,25 +280,36 @@ export function V2AppShell() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => syncNowWithCloud()}
-              title="Multi-Device Cloud Reconcile"
-              className="flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-[#ECFDF5] px-3 text-xs font-semibold text-emerald-900 transition-colors hover:bg-emerald-100/80"
+              onClick={() => {
+                if (userEmail) {
+                  void syncNowWithCloud();
+                } else {
+                  setActiveModule('reports');
+                }
+              }}
+              title={
+                userEmail
+                  ? `Multi-Device Cloud Reconcile (${userEmail})`
+                  : 'Sign in with Supabase for Multi-Device Cloud Sync'
+              }
+              className={`flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-colors ${
+                userEmail
+                  ? 'border-emerald-200 bg-[#ECFDF5] text-emerald-900 hover:bg-emerald-100/80'
+                  : 'border-indigo-200 bg-[#EEF2FF] text-indigo-900 hover:bg-indigo-100/80'
+              }`}
             >
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  syncStatus === 'syncing'
-                    ? 'animate-pulse bg-amber-500'
-                    : 'bg-emerald-600'
-                }`}
-              />
-              <span className="hidden sm:inline">
-                {syncStatus === 'syncing' ? 'Syncing...' : 'V2 Synced'}
-              </span>
               <RefreshCw
-                className={`h-3.5 w-3.5 text-emerald-700 ${
-                  syncStatus === 'syncing' ? 'animate-spin' : ''
-                }`}
+                className={`h-3.5 w-3.5 ${
+                  userEmail ? 'text-emerald-700' : 'text-indigo-700'
+                } ${syncStatus === 'syncing' ? 'animate-spin' : ''}`}
               />
+              <span className="hidden sm:inline whitespace-nowrap">
+                {syncStatus === 'syncing'
+                  ? 'Syncing...'
+                  : userEmail
+                    ? 'V2 Synced'
+                    : 'Cloud Sign In'}
+              </span>
             </button>
 
             <Button
@@ -350,13 +358,10 @@ export function V2AppShell() {
                         : 'border-transparent text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                     }`}
                   >
-                    <span className="flex items-center gap-2.5">
+                    <span className="flex items-center gap-2.5 whitespace-nowrap">
                       <Icon className="h-4 w-4 shrink-0" />
                       <span>{mod.label}</span>
                     </span>
-                    {isActive && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                    )}
                   </button>
                 );
               })}

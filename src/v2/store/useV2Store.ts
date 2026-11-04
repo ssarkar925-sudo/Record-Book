@@ -23,7 +23,7 @@ import {
 } from '@/v2/engine/financialEngine';
 import { getSupabaseV2Client } from '@/v2/supabaseClient';
 
-const STORAGE_PREFIX = 'rb_v2_clean_';
+const STORAGE_PREFIX = 'rb_v2_prod_';
 const KEYS = {
   workspace: `${STORAGE_PREFIX}workspace`,
   accounts: `${STORAGE_PREFIX}accounts`,
@@ -38,256 +38,15 @@ const KEYS = {
   activeModule: `${STORAGE_PREFIX}active_module`,
 };
 
-const NOW_ISO = '2026-11-04T06:00:00.000Z';
+const NOW_ISO = new Date().toISOString();
 
-const INITIAL_ACCOUNTS: V2Account[] = [
-  {
-    id: 'a1111111-1111-4111-8111-111111111101',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    name: 'HDFC Business Current',
-    account_type: 'current',
-    bank_name: 'HDFC Bank',
-    account_number_last4: '4829',
-    ifsc: 'HDFC0001204',
-    balance_paise: 24500000, // ₹2,45,000
-    is_default: true,
-    scope: 'business',
-    notes: 'Primary merchant settlement & GST account',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-  {
-    id: 'a1111111-1111-4111-8111-111111111102',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    name: 'SBI Personal Savings',
-    account_type: 'savings',
-    bank_name: 'State Bank of India',
-    account_number_last4: '9104',
-    ifsc: 'SBIN0004321',
-    balance_paise: 8650000, // ₹86,500
-    is_default: false,
-    scope: 'personal',
-    notes: 'Personal savings & emergency liquidity reserve',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-  {
-    id: 'a1111111-1111-4111-8111-111111111103',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    name: 'Store Cash Drawer (Galla)',
-    account_type: 'cash',
-    bank_name: 'Physical Cash',
-    account_number_last4: 'CASH',
-    balance_paise: 3240000, // ₹32,400
-    is_default: false,
-    scope: 'business',
-    notes: 'Daily counter cash & petty cash float',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-];
-
-const INITIAL_ENTRIES: V2LedgerEntry[] = [
-  {
-    id: 'e2222222-2222-4222-8222-222222222201',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    entry_type: 'cash_in',
-    amount_paise: 6800000, // ₹68,000
-    category: 'Wholesale Invoice Settlement',
-    payment_mode: 'upi',
-    account_id: 'a1111111-1111-4111-8111-111111111101',
-    note: 'Received Q4 batch order payment from Apex Retailers',
-    entry_date: '2026-11-04T04:30:00.000Z',
-    scope: 'business',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-  {
-    id: 'e2222222-2222-4222-8222-222222222202',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    entry_type: 'expense',
-    amount_paise: 1450000, // ₹14,500
-    category: 'Logistics & Freight',
-    payment_mode: 'bank',
-    account_id: 'a1111111-1111-4111-8111-111111111101',
-    note: 'Regional dispatch transport & packaging invoice',
-    entry_date: '2026-11-03T14:20:00.000Z',
-    scope: 'business',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-  {
-    id: 'e2222222-2222-4222-8222-222222222203',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    entry_type: 'expense',
-    amount_paise: 420000, // ₹4,200
-    category: 'Household Groceries & Utilities',
-    payment_mode: 'upi',
-    account_id: 'a1111111-1111-4111-8111-111111111102',
-    note: 'Monthly electricity & organic provisions',
-    entry_date: '2026-11-02T18:00:00.000Z',
-    scope: 'family',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-];
-
-const INITIAL_DUES: V2PartyDue[] = [
-  {
-    id: 'd3333333-3333-4333-8333-333333333301',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    party_name: 'Kalyani Electronics & Traders',
-    phone: '+91 98301 44210',
-    party_type: 'customer',
-    direction: 'receivable',
-    total_amount_paise: 4500000, // ₹45,000
-    paid_amount_paise: 1500000, // ₹15,000 paid -> ₹30,000 due
-    due_date: '2026-11-12',
-    status: 'partial',
-    scope: 'business',
-    notes: 'Invoice #INV-2084 balance receivable',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-  {
-    id: 'd3333333-3333-4333-8333-333333333302',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    party_name: 'Eastern Packaging Pvt Ltd',
-    phone: '+91 98312 77890',
-    party_type: 'supplier',
-    direction: 'payable',
-    total_amount_paise: 1850000, // ₹18,500 payable
-    paid_amount_paise: 0,
-    due_date: '2026-11-10',
-    status: 'pending',
-    scope: 'business',
-    notes: 'Corrugated carton supply batch #11',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-];
-
-const INITIAL_CARDS: V2CreditCard[] = [
-  {
-    id: 'c4444444-4444-4444-8444-444444444401',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    card_name: 'HDFC Regalia Gold Business',
-    bank_name: 'HDFC Bank',
-    last4: '8842',
-    network: 'visa',
-    credit_limit_paise: 50000000, // ₹5,00,000 limit
-    utilized_paise: 4250000, // ₹42,500 utilized (8.5%)
-    statement_day: 18,
-    due_day: 5,
-    scope: 'business',
-    notes: 'Cloud SaaS subscriptions & vendor travel',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-  {
-    id: 'c4444444-4444-4444-8444-444444444402',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    card_name: 'ICICI Amazon Pay',
-    bank_name: 'ICICI Bank',
-    last4: '3109',
-    network: 'visa',
-    credit_limit_paise: 25000000, // ₹2,50,000 limit
-    utilized_paise: 1200000, // ₹12,000 utilized
-    statement_day: 12,
-    due_day: 2,
-    scope: 'personal',
-    notes: 'Utility & e-commerce cashback card',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-];
-
-const INITIAL_SHEETS: V2Sheet[] = [
-  {
-    id: '55555555-5555-4555-8555-555555555501',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    title: 'November GST Sales & Dispatch Register',
-    category: 'Tax & GST Register',
-    scope: 'business',
-    columns: [
-      { id: 'col_inv', name: 'Invoice No', type: 'text' },
-      { id: 'col_party', name: 'Party Name', type: 'text' },
-      { id: 'col_taxable', name: 'Taxable Value (₹)', type: 'currency' },
-      { id: 'col_gst', name: 'GST 18% (₹)', type: 'currency' },
-      { id: 'col_total', name: 'Invoice Total (₹)', type: 'currency' },
-    ],
-    rows: [
-      {
-        id: 'row-1',
-        cells: {
-          col_inv: 'GST/26-27/101',
-          col_party: 'Apex Retailers',
-          col_taxable: 57627,
-          col_gst: 10373,
-          col_total: 68000,
-        },
-      },
-      {
-        id: 'row-2',
-        cells: {
-          col_inv: 'GST/26-27/102',
-          col_party: 'Kalyani Electronics',
-          col_taxable: 38136,
-          col_gst: 6864,
-          col_total: 45000,
-        },
-      },
-    ],
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-];
-
-const INITIAL_NOTES: V2Note[] = [
-  {
-    id: '66666666-6666-4666-8666-666666666601',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    title: 'Weekly Dispatch & Supplier Payout Checklist',
-    body: 'Auto-calculated checklist for warehouse restocking and courier settlement.',
-    checklist_items: [
-      { id: 'chk-1', text: 'Clear BlueDart air freight bill ₹3,200', checked: true, amount_paise: 320000 },
-      { id: 'chk-2', text: 'Order barcode thermal labels ₹1,450', checked: false, amount_paise: 145000 },
-      { id: 'chk-3', text: 'Warehouse tea & staff refreshments ₹650', checked: false, amount_paise: 65000 },
-    ],
-    calculated_total_paise: 530000, // ₹5,300
-    color_theme: 'amber',
-    priority: 'high',
-    is_pinned: true,
-    is_archived: false,
-    is_trashed: false,
-    reminder_date: '2026-11-06',
-    tags: ['dispatch', 'supplier', 'weekly'],
-    scope: 'business',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-  {
-    id: '66666666-6666-4666-8666-666666666602',
-    workspace_id: DEFAULT_V2_WORKSPACE_ID,
-    title: 'Diwali & Winter Family Budget Plan',
-    body: 'Planned household purchases and travel bookings.',
-    checklist_items: [
-      { id: 'chk-4', text: 'Home lighting & decor ₹4,500', checked: true, amount_paise: 450000 },
-      { id: 'chk-5', text: 'Family gift hampers ₹6,000', checked: false, amount_paise: 600000 },
-    ],
-    calculated_total_paise: 1050000, // ₹10,500
-    color_theme: 'indigo',
-    priority: 'medium',
-    is_pinned: false,
-    is_archived: false,
-    is_trashed: false,
-    reminder_date: '2026-11-15',
-    tags: ['family', 'festival'],
-    scope: 'family',
-    created_at: NOW_ISO,
-    updated_at: NOW_ISO,
-  },
-];
+// Clean production ₹0 initial state so zero fake demo records are uploaded to the user's Supabase database
+const INITIAL_ACCOUNTS: V2Account[] = [];
+const INITIAL_ENTRIES: V2LedgerEntry[] = [];
+const INITIAL_DUES: V2PartyDue[] = [];
+const INITIAL_CARDS: V2CreditCard[] = [];
+const INITIAL_SHEETS: V2Sheet[] = [];
+const INITIAL_NOTES: V2Note[] = [];
 
 function loadJSON<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -333,6 +92,10 @@ interface V2StoreState {
 
   // Account Actions
   addAccount: (acc: Omit<V2Account, 'id' | 'workspace_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateAccount: (
+    id: string,
+    patch: Partial<Pick<V2Account, 'name' | 'bank_name' | 'balance_paise' | 'account_number_last4' | 'ifsc' | 'scope' | 'notes'>>
+  ) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
   transferBetweenAccounts: (params: {
     fromAccountId: string;
@@ -411,6 +174,8 @@ interface V2StoreState {
   signOutSupabase: () => Promise<void>;
   exportFullBackupJson: () => string;
   importFullBackupJson: (rawJson: string) => { ok: boolean; error?: string };
+  loadSampleWorkspaceData: () => Promise<void>;
+  clearAllWorkspaceData: () => Promise<void>;
 }
 
 function getConfirmedSet(): Set<string> {
@@ -543,6 +308,17 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     set({ accounts: next });
     saveJSON(KEYS.accounts, next);
     await upsertCloudRow('v2_accounts', newAcc);
+  },
+
+  updateAccount: async (id, patch) => {
+    const now = new Date().toISOString();
+    const next = get().accounts.map((acc) =>
+      acc.id === id ? { ...acc, ...patch, updated_at: now } : acc
+    );
+    set({ accounts: next });
+    saveJSON(KEYS.accounts, next);
+    const updated = next.find((a) => a.id === id);
+    if (updated) await upsertCloudRow('v2_accounts', updated);
   },
 
   deleteAccount: async (id) => {
@@ -1113,13 +889,13 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     const savedVault = loadJSON<V2VaultItem[] | null>(KEYS.vault, null);
 
     set({
-      accounts: savedAccounts && savedAccounts.length > 0 ? savedAccounts : INITIAL_ACCOUNTS,
-      entries: savedEntries && savedEntries.length > 0 ? savedEntries : INITIAL_ENTRIES,
-      dues: savedDues && savedDues.length > 0 ? savedDues : INITIAL_DUES,
-      cards: savedCards && savedCards.length > 0 ? savedCards : INITIAL_CARDS,
-      sheets: savedSheets && savedSheets.length > 0 ? savedSheets : INITIAL_SHEETS,
-      notes: savedNotes && savedNotes.length > 0 ? savedNotes : INITIAL_NOTES,
-      vaultItems: savedVault || [],
+      accounts: Array.isArray(savedAccounts) ? savedAccounts : [],
+      entries: Array.isArray(savedEntries) ? savedEntries : [],
+      dues: Array.isArray(savedDues) ? savedDues : [],
+      cards: Array.isArray(savedCards) ? savedCards : [],
+      sheets: Array.isArray(savedSheets) ? savedSheets : [],
+      notes: Array.isArray(savedNotes) ? savedNotes : [],
+      vaultItems: Array.isArray(savedVault) ? savedVault : [],
     });
 
     await get().syncNowWithCloud();
@@ -1222,131 +998,47 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
         return [];
       };
 
-      const remoteAccounts = getRemoteList<V2Account>(accRes, 'accounts');
-      if (remoteAccounts.length > 0 || (accRes.status === 'fulfilled' && Array.isArray(accRes.value.data))) {
-        const rec = reconcileV2Records<V2Account>({
-          remoteRecords: remoteAccounts,
-          localRecords: get().accounts,
-          confirmedCloudIds: confirmed,
-          deletedTombstoneIds: deleted,
-          canonicalWorkspaceId: canonicalWsId,
-        });
-        set({ accounts: rec.merged });
-        saveJSON(KEYS.accounts, rec.merged);
-        rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
-        for (const item of rec.toUpsertToCloud) {
-          await upsertCloudRow('v2_accounts', item);
-          nextConfirmed.add(item.id);
+      const syncTableCollection = async <T extends { id: string; workspace_id: string; updated_at: string }>(
+        tableName: string,
+        tableSettled: PromiseSettledResult<any>,
+        metaField: string,
+        localList: T[],
+        storageKey: string,
+        applyMerged: (merged: T[]) => void
+      ) => {
+        const remoteList = getRemoteList<T>(tableSettled, metaField);
+        if (
+          remoteList.length > 0 ||
+          localList.length > 0 ||
+          (tableSettled.status === 'fulfilled' && Array.isArray(tableSettled.value?.data))
+        ) {
+          const rec = reconcileV2Records<T>({
+            remoteRecords: remoteList,
+            localRecords: localList,
+            confirmedCloudIds: confirmed,
+            deletedTombstoneIds: deleted,
+            canonicalWorkspaceId: canonicalWsId,
+          });
+          applyMerged(rec.merged);
+          saveJSON(storageKey, rec.merged);
+          rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
+          for (const item of rec.toUpsertToCloud) {
+            await upsertCloudRow(tableName, item as Record<string, any>);
+            nextConfirmed.add(item.id);
+          }
+          for (const delId of rec.toDeleteFromCloud) {
+            await deleteCloudRow(tableName, delId);
+          }
         }
-      }
+      };
 
-      const remoteEntries = getRemoteList<V2LedgerEntry>(entRes, 'entries');
-      if (remoteEntries.length > 0 || (entRes.status === 'fulfilled' && Array.isArray(entRes.value.data))) {
-        const rec = reconcileV2Records<V2LedgerEntry>({
-          remoteRecords: remoteEntries,
-          localRecords: get().entries,
-          confirmedCloudIds: confirmed,
-          deletedTombstoneIds: deleted,
-          canonicalWorkspaceId: canonicalWsId,
-        });
-        set({ entries: rec.merged });
-        saveJSON(KEYS.entries, rec.merged);
-        rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
-        for (const item of rec.toUpsertToCloud) {
-          await upsertCloudRow('v2_ledger_entries', item);
-          nextConfirmed.add(item.id);
-        }
-      }
-
-      const remoteDues = getRemoteList<V2PartyDue>(dueRes, 'dues');
-      if (remoteDues.length > 0 || (dueRes.status === 'fulfilled' && Array.isArray(dueRes.value.data))) {
-        const rec = reconcileV2Records<V2PartyDue>({
-          remoteRecords: remoteDues,
-          localRecords: get().dues,
-          confirmedCloudIds: confirmed,
-          deletedTombstoneIds: deleted,
-          canonicalWorkspaceId: canonicalWsId,
-        });
-        set({ dues: rec.merged });
-        saveJSON(KEYS.dues, rec.merged);
-        rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
-        for (const item of rec.toUpsertToCloud) {
-          await upsertCloudRow('v2_parties_dues', item);
-          nextConfirmed.add(item.id);
-        }
-      }
-
-      const remoteCards = getRemoteList<V2CreditCard>(cardRes, 'cards');
-      if (remoteCards.length > 0 || (cardRes.status === 'fulfilled' && Array.isArray(cardRes.value.data))) {
-        const rec = reconcileV2Records<V2CreditCard>({
-          remoteRecords: remoteCards,
-          localRecords: get().cards,
-          confirmedCloudIds: confirmed,
-          deletedTombstoneIds: deleted,
-          canonicalWorkspaceId: canonicalWsId,
-        });
-        set({ cards: rec.merged });
-        saveJSON(KEYS.cards, rec.merged);
-        rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
-        for (const item of rec.toUpsertToCloud) {
-          await upsertCloudRow('v2_credit_cards', item);
-          nextConfirmed.add(item.id);
-        }
-      }
-
-      const remoteSheets = getRemoteList<V2Sheet>(sheetRes, 'sheets');
-      if (remoteSheets.length > 0 || (sheetRes.status === 'fulfilled' && Array.isArray(sheetRes.value.data))) {
-        const rec = reconcileV2Records<V2Sheet>({
-          remoteRecords: remoteSheets,
-          localRecords: get().sheets,
-          confirmedCloudIds: confirmed,
-          deletedTombstoneIds: deleted,
-          canonicalWorkspaceId: canonicalWsId,
-        });
-        set({ sheets: rec.merged });
-        saveJSON(KEYS.sheets, rec.merged);
-        rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
-        for (const item of rec.toUpsertToCloud) {
-          await upsertCloudRow('v2_sheets', item);
-          nextConfirmed.add(item.id);
-        }
-      }
-
-      const remoteNotes = getRemoteList<V2Note>(noteRes, 'notes');
-      if (remoteNotes.length > 0 || (noteRes.status === 'fulfilled' && Array.isArray(noteRes.value.data))) {
-        const rec = reconcileV2Records<V2Note>({
-          remoteRecords: remoteNotes,
-          localRecords: get().notes,
-          confirmedCloudIds: confirmed,
-          deletedTombstoneIds: deleted,
-          canonicalWorkspaceId: canonicalWsId,
-        });
-        set({ notes: rec.merged });
-        saveJSON(KEYS.notes, rec.merged);
-        rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
-        for (const item of rec.toUpsertToCloud) {
-          await upsertCloudRow('v2_notes', item);
-          nextConfirmed.add(item.id);
-        }
-      }
-
-      const remoteVault = getRemoteList<V2VaultItem>(vaultRes, 'vaultItems');
-      if (remoteVault.length > 0 || (vaultRes.status === 'fulfilled' && Array.isArray(vaultRes.value.data))) {
-        const rec = reconcileV2Records<V2VaultItem>({
-          remoteRecords: remoteVault,
-          localRecords: get().vaultItems,
-          confirmedCloudIds: confirmed,
-          deletedTombstoneIds: deleted,
-          canonicalWorkspaceId: canonicalWsId,
-        });
-        set({ vaultItems: rec.merged });
-        saveJSON(KEYS.vault, rec.merged);
-        rec.nextConfirmedCloudIds.forEach((id) => nextConfirmed.add(id));
-        for (const item of rec.toUpsertToCloud) {
-          await upsertCloudRow('v2_vault_items', item);
-          nextConfirmed.add(item.id);
-        }
-      }
+      await syncTableCollection('v2_accounts', accRes, 'accounts', get().accounts, KEYS.accounts, (merged) => set({ accounts: merged }));
+      await syncTableCollection('v2_ledger_entries', entRes, 'entries', get().entries, KEYS.entries, (merged) => set({ entries: merged }));
+      await syncTableCollection('v2_parties_dues', dueRes, 'dues', get().dues, KEYS.dues, (merged) => set({ dues: merged }));
+      await syncTableCollection('v2_credit_cards', cardRes, 'cards', get().cards, KEYS.cards, (merged) => set({ cards: merged }));
+      await syncTableCollection('v2_sheets', sheetRes, 'sheets', get().sheets, KEYS.sheets, (merged) => set({ sheets: merged }));
+      await syncTableCollection('v2_notes', noteRes, 'notes', get().notes, KEYS.notes, (merged) => set({ notes: merged }));
+      await syncTableCollection('v2_vault_items', vaultRes, 'vaultItems', get().vaultItems, KEYS.vault, (merged) => set({ vaultItems: merged }));
 
       saveConfirmedSet(nextConfirmed);
       scheduleMetadataSnapshotPush(get);
@@ -1464,5 +1156,272 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     } catch (err: any) {
       return { ok: false, error: err?.message || 'Failed to parse JSON' };
     }
+  },
+
+  loadSampleWorkspaceData: async () => {
+    const now = new Date().toISOString();
+    const wsId = get().workspace.id;
+    const sampleAccounts: V2Account[] = [
+      {
+        id: 'a1111111-1111-4111-8111-111111111101',
+        workspace_id: wsId,
+        name: 'HDFC Business Current',
+        account_type: 'current',
+        bank_name: 'HDFC Bank',
+        account_number_last4: '4829',
+        ifsc: 'HDFC0001204',
+        balance_paise: 24500000,
+        is_default: true,
+        scope: 'business',
+        notes: 'Primary merchant settlement & GST account',
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'a1111111-1111-4111-8111-111111111102',
+        workspace_id: wsId,
+        name: 'SBI Personal Savings',
+        account_type: 'savings',
+        bank_name: 'State Bank of India',
+        account_number_last4: '9104',
+        ifsc: 'SBIN0004321',
+        balance_paise: 8650000,
+        is_default: false,
+        scope: 'personal',
+        notes: 'Personal savings & emergency liquidity reserve',
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'a1111111-1111-4111-8111-111111111103',
+        workspace_id: wsId,
+        name: 'Store Cash Drawer (Galla)',
+        account_type: 'cash',
+        bank_name: 'Physical Cash',
+        account_number_last4: 'CASH',
+        balance_paise: 3240000,
+        is_default: false,
+        scope: 'business',
+        notes: 'Daily counter cash & petty cash float',
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    const sampleEntries: V2LedgerEntry[] = [
+      {
+        id: 'e2222222-2222-4222-8222-222222222201',
+        workspace_id: wsId,
+        entry_type: 'cash_in',
+        amount_paise: 6800000,
+        category: 'Wholesale Invoice Settlement',
+        payment_mode: 'upi',
+        account_id: 'a1111111-1111-4111-8111-111111111101',
+        note: 'Received Q4 batch order payment from Apex Retailers',
+        entry_date: now,
+        scope: 'business',
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'e2222222-2222-4222-8222-222222222202',
+        workspace_id: wsId,
+        entry_type: 'expense',
+        amount_paise: 1450000,
+        category: 'Logistics & Freight',
+        payment_mode: 'bank',
+        account_id: 'a1111111-1111-4111-8111-111111111101',
+        note: 'Regional dispatch transport & packaging invoice',
+        entry_date: now,
+        scope: 'business',
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'e2222222-2222-4222-8222-222222222203',
+        workspace_id: wsId,
+        entry_type: 'expense',
+        amount_paise: 420000,
+        category: 'Household Groceries & Utilities',
+        payment_mode: 'upi',
+        account_id: 'a1111111-1111-4111-8111-111111111102',
+        note: 'Monthly electricity & organic provisions',
+        entry_date: now,
+        scope: 'family',
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    const sampleDues: V2PartyDue[] = [
+      {
+        id: 'd3333333-3333-4333-8333-333333333301',
+        workspace_id: wsId,
+        party_name: 'Kalyani Electronics & Traders',
+        phone: '+91 98301 44210',
+        party_type: 'customer',
+        direction: 'receivable',
+        total_amount_paise: 4500000,
+        paid_amount_paise: 1500000,
+        due_date: '2026-11-12',
+        status: 'partial',
+        scope: 'business',
+        notes: 'Invoice #INV-2084 balance receivable',
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'd3333333-3333-4333-8333-333333333302',
+        workspace_id: wsId,
+        party_name: 'Eastern Packaging Pvt Ltd',
+        phone: '+91 98312 77890',
+        party_type: 'supplier',
+        direction: 'payable',
+        total_amount_paise: 1850000,
+        paid_amount_paise: 0,
+        due_date: '2026-11-10',
+        status: 'pending',
+        scope: 'business',
+        notes: 'Corrugated carton supply batch #11',
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    const sampleCards: V2CreditCard[] = [
+      {
+        id: 'c4444444-4444-4444-8444-444444444401',
+        workspace_id: wsId,
+        card_name: 'HDFC Regalia Gold Business',
+        bank_name: 'HDFC Bank',
+        last4: '8842',
+        network: 'visa',
+        credit_limit_paise: 50000000,
+        utilized_paise: 4250000,
+        statement_day: 18,
+        due_day: 5,
+        scope: 'business',
+        notes: 'Cloud SaaS subscriptions & vendor travel',
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    const sampleSheets: V2Sheet[] = [
+      {
+        id: '55555555-5555-4555-8555-555555555501',
+        workspace_id: wsId,
+        title: 'November GST Sales & Dispatch Register',
+        category: 'Tax & GST Register',
+        scope: 'business',
+        columns: [
+          { id: 'col_inv', name: 'Invoice No', type: 'text' },
+          { id: 'col_party', name: 'Party Name', type: 'text' },
+          { id: 'col_taxable', name: 'Taxable Value (₹)', type: 'currency' },
+          { id: 'col_gst', name: 'GST 18% (₹)', type: 'currency' },
+          { id: 'col_total', name: 'Invoice Total (₹)', type: 'currency' },
+        ],
+        rows: [
+          {
+            id: 'row-1',
+            cells: {
+              col_inv: 'GST/26-27/101',
+              col_party: 'Apex Retailers',
+              col_taxable: 57627,
+              col_gst: 10373,
+              col_total: 68000,
+            },
+          },
+          {
+            id: 'row-2',
+            cells: {
+              col_inv: 'GST/26-27/102',
+              col_party: 'Kalyani Electronics',
+              col_taxable: 38136,
+              col_gst: 6864,
+              col_total: 45000,
+            },
+          },
+        ],
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    const sampleNotes: V2Note[] = [
+      {
+        id: '66666666-6666-4666-8666-666666666601',
+        workspace_id: wsId,
+        title: 'Weekly Dispatch & Supplier Payout Checklist',
+        body: 'Auto-calculated checklist for warehouse restocking and courier settlement.',
+        checklist_items: [
+          { id: 'chk-1', text: 'Clear BlueDart air freight bill ₹3,200', checked: true, amount_paise: 320000 },
+          { id: 'chk-2', text: 'Order barcode thermal labels ₹1,450', checked: false, amount_paise: 145000 },
+          { id: 'chk-3', text: 'Warehouse tea & staff refreshments ₹650', checked: false, amount_paise: 65000 },
+        ],
+        calculated_total_paise: 530000,
+        color_theme: 'amber',
+        priority: 'high',
+        is_pinned: true,
+        is_archived: false,
+        is_trashed: false,
+        reminder_date: '2026-11-06',
+        tags: ['dispatch', 'supplier', 'weekly'],
+        scope: 'business',
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    saveJSON(KEYS.deletedIds, []);
+    set({
+      accounts: sampleAccounts,
+      entries: sampleEntries,
+      dues: sampleDues,
+      cards: sampleCards,
+      sheets: sampleSheets,
+      notes: sampleNotes,
+    });
+    saveJSON(KEYS.accounts, sampleAccounts);
+    saveJSON(KEYS.entries, sampleEntries);
+    saveJSON(KEYS.dues, sampleDues);
+    saveJSON(KEYS.cards, sampleCards);
+    saveJSON(KEYS.sheets, sampleSheets);
+    saveJSON(KEYS.notes, sampleNotes);
+    await get().syncNowWithCloud();
+  },
+
+  clearAllWorkspaceData: async () => {
+    const st = get();
+    const allIds = [
+      ...st.accounts.map((a) => ({ table: 'v2_accounts', id: a.id })),
+      ...st.entries.map((e) => ({ table: 'v2_ledger_entries', id: e.id })),
+      ...st.dues.map((d) => ({ table: 'v2_parties_dues', id: d.id })),
+      ...st.cards.map((c) => ({ table: 'v2_credit_cards', id: c.id })),
+      ...st.sheets.map((s) => ({ table: 'v2_sheets', id: s.id })),
+      ...st.notes.map((n) => ({ table: 'v2_notes', id: n.id })),
+      ...st.vaultItems.map((v) => ({ table: 'v2_vault_items', id: v.id })),
+    ];
+    allIds.forEach((item) => recordTombstone(item.id));
+    set({
+      accounts: [],
+      entries: [],
+      dues: [],
+      cards: [],
+      sheets: [],
+      notes: [],
+      vaultItems: [],
+    });
+    saveJSON(KEYS.accounts, []);
+    saveJSON(KEYS.entries, []);
+    saveJSON(KEYS.dues, []);
+    saveJSON(KEYS.cards, []);
+    saveJSON(KEYS.sheets, []);
+    saveJSON(KEYS.notes, []);
+    saveJSON(KEYS.vault, []);
+    for (const item of allIds) {
+      await deleteCloudRow(item.table, item.id);
+    }
+    scheduleMetadataSnapshotPush(get);
   },
 }));

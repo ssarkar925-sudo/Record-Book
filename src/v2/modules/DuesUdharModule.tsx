@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import {
   CheckCircle2,
-  HandCoins,
   Phone,
   Plus,
   Trash2,
@@ -142,109 +141,125 @@ export function DuesUdharModule() {
       </div>
 
       {/* Dues List */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {filteredDues.map((due) => {
-          const remainingPaise = Math.max(0, due.total_amount_paise - due.paid_amount_paise);
-          const isReceivable = due.direction === 'receivable';
-          const isSettled = due.status === 'settled' || remainingPaise === 0;
-
-          return (
-            <div
-              key={due.id}
-              className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6"
+      {filteredDues.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+          <h3 className="text-base font-bold text-slate-900">
+            No customer receivables or supplier payables recorded
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Track pending invoices, partial settlements, and due dates across business and personal spheres.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <Button
+              onClick={() => setAddOpen(true)}
+              className="gap-2 bg-amber-600 text-white hover:bg-amber-700"
             >
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${
-                          isSettled
-                            ? 'bg-slate-400'
-                            : isReceivable
-                            ? 'bg-emerald-600'
-                            : 'bg-rose-600'
-                        }`}
-                      />
+              <Plus className="h-4 w-4" />
+              <span>Record First Udhar</span>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {filteredDues.map((due) => {
+            const remainingPaise = Math.max(
+              0,
+              due.total_amount_paise - due.paid_amount_paise
+            );
+            const isReceivable = due.direction === 'receivable';
+            const isSettled = due.status === 'settled' || remainingPaise === 0;
+
+            return (
+              <div
+                key={due.id}
+                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
                       <h3 className="text-base font-bold text-slate-900">
                         {due.party_name}
                       </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {isReceivable
+                          ? 'Customer Receivable (You Get)'
+                          : 'Supplier Payable (You Give)'}{' '}
+                        · Due: {due.due_date} · {due.scope}
+                      </p>
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {isReceivable ? 'CUSTOMER RECEIVABLE (YOU GET)' : 'SUPPLIER PAYABLE (YOU GIVE)'}{' '}
-                      · Due: {due.due_date} · {due.scope.toUpperCase()}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => deletePartyDue(due.id)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3.5">
-                  <div>
-                    <p className="text-[11px] text-slate-500">Total Bill</p>
-                    <p className="font-mono text-sm font-semibold tabular-nums text-slate-900">
-                      {formatINRFromPaise(due.total_amount_paise)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-slate-500">Settled</p>
-                    <p className="font-mono text-sm font-semibold tabular-nums text-slate-700">
-                      {formatINRFromPaise(due.paid_amount_paise)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-600">Balance Due</p>
-                    <p
-                      className={`font-mono text-sm font-bold tabular-nums ${
-                        isSettled
-                          ? 'text-slate-400'
-                          : isReceivable
-                          ? 'text-emerald-700'
-                          : 'text-rose-700'
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => deletePartyDue(due.id)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                     >
-                      {formatINRFromPaise(remainingPaise)}
-                    </p>
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+                    <div>
+                      <p className="text-[11px] text-slate-500">Total Bill</p>
+                      <p className="font-mono text-sm font-semibold tabular-nums text-slate-900">
+                        {formatINRFromPaise(due.total_amount_paise)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-500">Settled</p>
+                      <p className="font-mono text-sm font-semibold tabular-nums text-slate-700">
+                        {formatINRFromPaise(due.paid_amount_paise)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-slate-600">
+                        Balance Due
+                      </p>
+                      <p
+                        className={`font-mono text-sm font-bold tabular-nums ${
+                          isSettled
+                            ? 'text-slate-400'
+                            : isReceivable
+                              ? 'text-emerald-700'
+                              : 'text-rose-700'
+                        }`}
+                      >
+                        {formatINRFromPaise(remainingPaise)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {due.notes && (
+                    <p className="mt-3 text-xs text-slate-600">{due.notes}</p>
+                  )}
                 </div>
 
-                {due.notes && (
-                  <p className="mt-3 text-xs text-slate-600">{due.notes}</p>
-                )}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <Phone className="h-3.5 w-3.5" />
-                  {due.phone || 'No phone linked'}
-                </span>
-
-                {isSettled ? (
-                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700">
-                    <CheckCircle2 className="h-4 w-4" /> Fully Settled
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <Phone className="h-3.5 w-3.5" />
+                    {due.phone || 'No phone linked'}
                   </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant={isReceivable ? 'emerald' : 'rose'}
-                    onClick={() => {
-                      setSettleTarget(due);
-                      setSettleRupees((remainingPaise / 100).toString());
-                    }}
-                  >
-                    {isReceivable ? 'Receive Payment' : 'Pay Supplier'}
-                  </Button>
-                )}
+
+                  {isSettled ? (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4" /> Fully Settled
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant={isReceivable ? 'emerald' : 'rose'}
+                      onClick={() => {
+                        setSettleTarget(due);
+                        setSettleRupees((remainingPaise / 100).toString());
+                      }}
+                    >
+                      {isReceivable ? 'Receive Payment' : 'Pay Supplier'}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add Due Modal */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>

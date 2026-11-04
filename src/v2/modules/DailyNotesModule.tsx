@@ -258,7 +258,7 @@ export function DailyNotesModule() {
                     <div>
                       <div className="flex items-center gap-2">
                         {note.is_pinned && (
-                          <span className="h-2 w-2 rounded-full bg-amber-600" />
+                          <Pin className="h-3.5 w-3.5 shrink-0 text-amber-700" />
                         )}
                         <h3 className="text-base font-bold text-slate-900">
                           {note.title}
