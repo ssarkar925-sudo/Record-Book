@@ -1,47 +1,53 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  CheckCircle2,
   Cloud,
-  Copy,
-  Database,
   Download,
-  ExternalLink,
-  FileCode2,
-  FileText,
-  GitBranch,
+  Eye,
+  EyeOff,
+  FileBarChart2,
+  KeyRound,
+  Lock,
+  LogOut,
   RefreshCw,
-  RotateCcw,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Unlock,
   Upload,
 } from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
+import { useV2Store } from '../store/useV2Store';
 import {
-  clearCustomSupabaseConfig,
-  getSupabaseV2Client,
-  saveCustomSupabaseConfig,
-  V2_GITHUB_REPO_URL,
-  V2_PRODUCTION_SUPABASE_PUBLISHABLE_KEY,
-  V2_PRODUCTION_SUPABASE_URL,
-  verifyV2SchemaTablesExist,
-} from '@/v2/supabaseClient';
-import {
-  V2_DOCS_COLLECTION,
-  V2_SQL_SCHEMA_CONTENT,
-} from '@/v2/docs';
-import { formatINRFromPaise } from '@/v2/engine/financialEngine';
+  computeOverviewMetrics,
+  formatINRFromPaise,
+} from '../engine/financialEngine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export function ReportsSyncDocsModule() {
   const {
-    entries,
     accounts,
+    entries,
     dues,
     cards,
+    notes,
+    sheets,
+    vaultItems,
+    scopeFilter,
     userEmail,
     syncStatus,
     lastSyncedAt,
-    syncError,
+    privacyMasked,
+    appPinHash,
+    securityAuditLog,
+    togglePrivacyMask,
+    setAppSecurityPin,
+    removeAppSecurityPin,
+    lockApp,
+    logSecurityEvent,
     syncNowWithCloud,
     signInWithSupabase,
     signUpWithSupabase,
@@ -52,630 +58,726 @@ export function ReportsSyncDocsModule() {
     clearAllWorkspaceData,
   } = useV2Store();
 
-  const [activeSubTab, setActiveSubTab] = useState<
-    'supabase' | 'docs' | 'reports'
-  >('supabase');
-  const [selectedDocId, setSelectedDocId] = useState<string>('sql');
-  const [copiedSql, setCopiedSql] = useState(false);
-  const [copiedGit, setCopiedGit] = useState(false);
-  const [copiedVercelEnv, setCopiedVercelEnv] = useState(false);
+  const [activeTab, setActiveTab] = useState<'pnl' | 'security' | 'backup'>(
+    'pnl'
+  );
 
-  // Supabase Connection & Schema Verification State
-  const supaInfo = getSupabaseV2Client();
-  const [customUrl, setCustomUrl] = useState(supaInfo.config.url);
-  const [customAnonKey, setCustomAnonKey] = useState(supaInfo.config.anonKey);
-  const [schemaCheck, setSchemaCheck] = useState<{
-    checking: boolean;
-    tablesReady: boolean;
-    message: string;
-  }>({
-    checking: true,
-    tablesReady: false,
-    message: 'Checking v2_* tables on xelxvojazyscbounzajs.supabase.co...',
-  });
+  // Security PIN Configuration State
+  const [pinInput, setPinInput] = useState('');
+  const [pinMessage, setPinMessage] = useState<string | null>(null);
 
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
+  // Cloud Account Sign-In State
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [importText, setImportText] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
 
-  const runSchemaVerification = async () => {
-    setSchemaCheck((prev) => ({ ...prev, checking: true }));
-    const res = await verifyV2SchemaTablesExist();
-    setSchemaCheck({
-      checking: false,
-      tablesReady: res.tablesReady,
-      message: res.message,
-    });
-  };
+  // Backup Import State
+  const [importJsonText, setImportJsonText] = useState('');
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
 
-  useEffect(() => {
-    void runSchemaVerification();
-  }, []);
+  const metrics = useMemo(
+    () =>
+      computeOverviewMetrics({
+        accounts,
+        entries,
+        dues,
+        cards,
+        scope: scopeFilter,
+      }),
+    [accounts, entries, dues, cards, scopeFilter]
+  );
 
-  // Category Breakdown Aggregation
-  const categoryTotals = entries.reduce<
-    Record<string, { inPaise: number; outPaise: number }>
-  >((acc, e) => {
-    if (!acc[e.category]) {
-      acc[e.category] = { inPaise: 0, outPaise: 0 };
+  // Category-wise P&L breakdown
+  const categoryBreakdown = useMemo(() => {
+    const map = new Map<string, { cashIn: number; cashOut: number }>();
+    for (const tx of entries) {
+      if (scopeFilter !== 'all' && tx.scope !== scopeFilter) continue;
+      if (tx.entry_type === 'transfer') continue;
+      const cur = map.get(tx.category) || { cashIn: 0, cashOut: 0 };
+      if (tx.entry_type === 'cash_in') {
+        cur.cashIn += tx.amount_paise;
+      } else {
+        cur.cashOut += tx.amount_paise;
+      }
+      map.set(tx.category, cur);
     }
-    if (e.entry_type === 'cash_in') {
-      acc[e.category].inPaise += e.amount_paise;
-    } else if (e.entry_type !== 'transfer') {
-      acc[e.category].outPaise += e.amount_paise;
+    return Array.from(map.entries()).map(([category, vals]) => ({
+      category,
+      ...vals,
+      net: vals.cashIn - vals.cashOut,
+    }));
+  }, [entries, scopeFilter]);
+
+  const handleSaveSecurityPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = pinInput.replace(/\D/g, '').slice(0, 4);
+    if (cleaned.length !== 4) {
+      setPinMessage('Please enter a 4-digit numeric PIN.');
+      return;
     }
-    return acc;
-  }, {});
+    setAppSecurityPin(cleaned);
+    setPinInput('');
+    setPinMessage('4-Digit App Security PIN activated.');
+  };
 
-  const handleSaveCustomSupabase = async (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customUrl.trim() || !customAnonKey.trim()) return;
-    saveCustomSupabaseConfig(customUrl.trim(), customAnonKey.trim());
-    setAuthMessage(
-      `Saved Supabase V2 connection (${customUrl.trim()}). Checking V2 tables...`
+    setAuthBusy(true);
+    setAuthMessage(null);
+    const res =
+      authMode === 'signin'
+        ? await signInWithSupabase(email, password)
+        : await signUpWithSupabase(email, password);
+    setAuthBusy(false);
+
+    if (!res.ok) {
+      setAuthMessage(res.error || 'Authentication failed');
+    } else {
+      setAuthMessage(
+        authMode === 'signin'
+          ? 'Signed in and synchronized your cloud workspace.'
+          : 'Account created and cloud backup enabled.'
+      );
+      setPassword('');
+    }
+  };
+
+  const handleDownloadJsonBackup = () => {
+    const raw = exportFullBackupJson();
+    logSecurityEvent(
+      'Encrypted Backup Exported',
+      'Downloaded full JSON workspace backup'
     );
-    await runSchemaVerification();
-    await syncNowWithCloud();
-  };
-
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const res = await signInWithSupabase(authEmail, authPassword);
-    setAuthMessage(
-      res.ok
-        ? 'Signed in and synchronized with V2 Cloud Workspace!'
-        : `Sign-in error: ${res.error}`
-    );
-  };
-
-  const handleSignUp = async () => {
-    const res = await signUpWithSupabase(authEmail, authPassword);
-    setAuthMessage(
-      res.ok
-        ? 'Cloud account created! You can now sign in across Web and Android.'
-        : `Sign-up error: ${res.error}`
-    );
-  };
-
-  const handleCopySql = async () => {
-    try {
-      await navigator.clipboard.writeText(V2_SQL_SCHEMA_CONTENT);
-      setCopiedSql(true);
-      setTimeout(() => setCopiedSql(false), 3000);
-    } catch {}
-  };
-
-  const gitCommandsText = `git init
-git branch -M main
-git remote remove origin 2>/dev/null || true
-git remote add origin ${V2_GITHUB_REPO_URL}
-git add .
-git commit -m "feat: fresh Record Book V2 daylight suite + Supabase V2"
-git push -u origin main --force`;
-
-  const vercelEnvText = `NEXT_PUBLIC_SUPABASE_URL=${V2_PRODUCTION_SUPABASE_URL}
-NEXT_PUBLIC_SUPABASE_ANON_KEY=${V2_PRODUCTION_SUPABASE_PUBLISHABLE_KEY}`;
-
-  const handleCopyGit = async () => {
-    try {
-      await navigator.clipboard.writeText(gitCommandsText);
-      setCopiedGit(true);
-      setTimeout(() => setCopiedGit(false), 2500);
-    } catch {}
-  };
-
-  const handleCopyVercelEnv = async () => {
-    try {
-      await navigator.clipboard.writeText(vercelEnvText);
-      setCopiedVercelEnv(true);
-      setTimeout(() => setCopiedVercelEnv(false), 2500);
-    } catch {}
-  };
-
-  const handleDownloadBackup = () => {
-    const json = exportFullBackupJson();
-    const blob = new Blob([json], { type: 'application/json' });
+    const blob = new Blob([raw], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `record_book_v2_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `record-book-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const handleRestoreBackup = () => {
-    if (!importText.trim()) return;
-    const res = importFullBackupJson(importText);
-    setAuthMessage(
-      res.ok
-        ? 'Successfully restored V2 JSON backup!'
-        : `Restore failed: ${res.error}`
-    );
-    if (res.ok) setImportText('');
+  const handleExportPnlCsv = () => {
+    const headers = ['Category', 'Cash_In_INR', 'Outflow_INR', 'Net_Position_INR'];
+    const rows = categoryBreakdown.map((r) => [
+      `"${r.category.replace(/"/g, '""')}"`,
+      (r.cashIn / 100).toFixed(2),
+      (r.cashOut / 100).toFixed(2),
+      (r.net / 100).toFixed(2),
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `record-book-pnl-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const activeDoc =
-    V2_DOCS_COLLECTION.find((d) => d.id === selectedDocId) ||
-    V2_DOCS_COLLECTION[0];
+  const netOperatingSurplus =
+    metrics.totalIncomePaise - metrics.totalExpensePaise;
 
   return (
     <div className="space-y-6">
-      {/* Pastel Header */}
-      <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-[#EEF2FF] via-[#EFF6FF] to-[#ECFDF5] p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">
-              Module 09 · GitHub + Supabase V2 + Vercel Production Command
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Cloud Sync, GitHub & Vercel Hub
-            </h1>
-            <p className="mt-1 text-sm text-slate-700">
-              Connected to{' '}
-              <span className="font-mono font-semibold text-indigo-900">
-                xelxvojazyscbounzajs.supabase.co
-              </span>{' '}
-              &{' '}
-              <span className="font-mono font-semibold text-slate-900">
-                ssarkar925-sudo/Record-Book
-              </span>
-            </p>
-          </div>
+      {/* Executive Header */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs sm:flex-row sm:items-center">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-[#ECFDF5] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-900">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-700" />
+            Statements, Security & Backup
+          </span>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900">
+            Reports, Security & Cloud Backup
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Inspect Profit & Loss statements, configure your 4-digit App Lock PIN, audit security events, and manage backups.
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                { id: 'supabase', label: 'Supabase V2 + GitHub + Vercel', icon: Cloud },
-                { id: 'docs', label: 'PRD, Design & V2 SQL Docs', icon: FileText },
-                { id: 'reports', label: 'Financial Reports & Backup', icon: Database },
-              ] as const
-            ).map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveSubTab(tab.id)}
-                  className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-colors ${
-                    activeSubTab === tab.id
-                      ? 'bg-slate-900 text-white'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+        {/* 3-Tab Switcher */}
+        <div className="flex shrink-0 items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 whitespace-nowrap">
+          <button
+            type="button"
+            onClick={() => setActiveTab('pnl')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+              activeTab === 'pnl'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileBarChart2 className="h-3.5 w-3.5 text-indigo-600" />
+            <span>P&L Statements</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('security')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+              activeTab === 'security'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Security & Privacy</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('backup')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+              activeTab === 'backup'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Cloud className="h-3.5 w-3.5 text-sky-600" />
+            <span>Cloud & Backup</span>
+          </button>
         </div>
       </div>
 
-      {/* TAB 1: SUPABASE V2 + GITHUB + VERCEL HUB */}
-      {activeSubTab === 'supabase' && (
+      {/* TAB 1: FINANCIAL P&L REPORTS */}
+      {activeTab === 'pnl' && (
         <div className="space-y-6">
-          {/* Step 1: Supabase V2 Schema Status Banner */}
-          <div
-            className={`rounded-2xl border p-6 ${
-              schemaCheck.tablesReady
-                ? 'border-emerald-200 bg-[#ECFDF5]'
-                : 'border-amber-200 bg-[#FFFBEB]'
-            }`}
-          >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] to-white p-5 shadow-2xs">
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+                Gross Cash Inflow
+              </p>
+              <p className="mt-2 font-mono text-2xl font-extrabold text-emerald-950">
+                {formatINRFromPaise(metrics.totalIncomePaise, {
+                  masked: privacyMasked,
+                })}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] to-white p-5 shadow-2xs">
+              <p className="text-xs font-bold uppercase tracking-wider text-rose-900">
+                Total Outflow & Spend
+              </p>
+              <p className="mt-2 font-mono text-2xl font-extrabold text-rose-950">
+                {formatINRFromPaise(metrics.totalExpensePaise, {
+                  masked: privacyMasked,
+                })}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-[#EFF6FF] to-white p-5 shadow-2xs">
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-900">
+                Net Operating Surplus
+              </p>
+              <p
+                className={`mt-2 font-mono text-2xl font-extrabold ${
+                  netOperatingSurplus >= 0
+                    ? 'text-emerald-800'
+                    : 'text-rose-800'
+                }`}
+              >
+                {formatINRFromPaise(netOperatingSurplus, {
+                  showSign: true,
+                  masked: privacyMasked,
+                })}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-5 shadow-2xs">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+                Closing Net Worth
+              </p>
+              <p className="mt-2 font-mono text-2xl font-extrabold text-slate-900">
+                {formatINRFromPaise(metrics.netWorthPaise, {
+                  masked: privacyMasked,
+                })}
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  {schemaCheck.tablesReady
-                    ? 'Supabase V2 Database Tables Ready (HTTP 200 Verified)'
-                    : 'Step 1 Required: Run V2 SQL Schema in New Supabase Project'}
-                </p>
-                <p className="mt-1 text-sm font-medium text-slate-800">
-                  {schemaCheck.message}
-                </p>
-                <p className="mt-1 font-mono text-xs text-slate-600">
-                  Endpoint: {V2_PRODUCTION_SUPABASE_URL}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5">
-                <Button
-                  variant="amber"
-                  onClick={handleCopySql}
-                  className="gap-1.5 border border-amber-300 bg-white text-amber-950"
-                >
-                  <Copy className="h-4 w-4" />
-                  {copiedSql ? 'Copied V2 SQL Script!' : '1. Copy V2 SQL Script'}
-                </Button>
-                <a
-                  href="https://supabase.com/dashboard/project/xelxvojazyscbounzajs/sql/new"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800"
-                >
-                  <span>2. Open Supabase SQL Editor</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-                <Button
-                  variant="outline"
-                  onClick={runSchemaVerification}
-                  className="gap-1.5 bg-white"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${
-                      schemaCheck.checking ? 'animate-spin' : ''
-                    }`}
-                  />
-                  Verify Tables
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* 2-Column Grid: Supabase Credentials + Cloud Auth */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-slate-900">
-                  Active Supabase V2 Project
+                <h2 className="text-sm font-bold text-slate-900">
+                  Category-Wise Profit & Loss Statement
                 </h2>
-                <span className="font-mono text-xs font-semibold text-emerald-700">
-                  Pre-Configured ✓
-                </span>
+                <p className="text-xs text-slate-500">
+                  Aggregated inflows and outflows across all recorded vouchers
+                </p>
               </div>
-              <p className="mt-1 text-xs text-slate-500">
-                Bound directly to your new Supabase project (`xelxvojazyscbounzajs`).
-              </p>
-
-              <form onSubmit={handleSaveCustomSupabase} className="mt-4 space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">
-                    Supabase Project URL
-                  </label>
-                  <Input
-                    value={customUrl}
-                    onChange={(e) => setCustomUrl(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">
-                    Supabase Publishable / Anon Key
-                  </label>
-                  <Input
-                    value={customAnonKey}
-                    onChange={(e) => setCustomAnonKey(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="submit">Save & Re-Verify</Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      clearCustomSupabaseConfig();
-                      setCustomUrl(V2_PRODUCTION_SUPABASE_URL);
-                      setCustomAnonKey(V2_PRODUCTION_SUPABASE_PUBLISHABLE_KEY);
-                      setAuthMessage(
-                        'Reset to default V2 production credentials (xelxvojazyscbounzajs).'
-                      );
-                    }}
-                  >
-                    Reset to Default V2
-                  </Button>
-                </div>
-              </form>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportPnlCsv}
+                disabled={categoryBreakdown.length === 0}
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                Export Statement CSV
+              </Button>
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-slate-900">
-                  Multi-Device Cloud Account (Web + Android)
-                </h2>
-                <span className="font-mono text-xs font-semibold text-indigo-700">
-                  {syncStatus.toUpperCase()}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-500">
-                Sign in with the same email on Web and Android for real-time auto-sync.
-              </p>
-
-              {userEmail ? (
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-xl border border-emerald-200 bg-[#ECFDF5] p-4">
-                    <p className="text-xs font-semibold text-emerald-900">
-                      Signed in as: <span className="font-bold">{userEmail}</span>
-                    </p>
-                    <p className="mt-1 text-xs text-emerald-800">
-                      Last reconciled: {lastSyncedAt || 'Just now'} · Realtime WebSocket active.
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="emerald"
-                      onClick={() => syncNowWithCloud()}
-                      className="gap-2"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Reconcile All Devices Now
-                    </Button>
-                    <Button variant="outline" onClick={() => signOutSupabase()}>
-                      Sign Out
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSignIn} className="mt-4 space-y-4">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-700">
-                      Email Address
-                    </label>
-                    <Input
-                      type="email"
-                      required
-                      placeholder="ssarkar925@gmail.com"
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-700">
-                      Password
-                    </label>
-                    <Input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="submit">Sign In & Sync V2</Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleSignUp}
-                    >
-                      Create Cloud Account
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              {(authMessage || syncError) && (
-                <div className="mt-4 rounded-xl border border-indigo-200 bg-[#EEF2FF] p-3 text-xs font-medium text-indigo-950">
-                  {authMessage || syncError}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* GitHub & Vercel Deployment Cards */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-indigo-600" />
-                  <h3 className="text-sm font-bold text-slate-900">
-                    New GitHub Repository Push Commands
-                  </h3>
-                </div>
-                <Button size="sm" variant="outline" onClick={handleCopyGit} className="gap-1.5">
-                  <Copy className="h-3.5 w-3.5" />
-                  {copiedGit ? 'Copied!' : 'Copy Git Commands'}
-                </Button>
-              </div>
-              <p className="mt-1 font-mono text-xs text-indigo-700">
-                {V2_GITHUB_REPO_URL}
-              </p>
-              <pre className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-3.5 font-mono text-xs text-slate-800">
-                {gitCommandsText}
-              </pre>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900">
-                  New Vercel Project Environment Variables
-                </h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCopyVercelEnv}
-                  className="gap-1.5"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {copiedVercelEnv ? 'Copied!' : 'Copy Vercel Env'}
-                </Button>
-              </div>
-              <p className="mt-1 text-xs text-slate-500">
-                Import <code className="font-mono text-slate-800">ssarkar925-sudo/Record-Book</code> on Vercel and paste these variables:
-              </p>
-              <pre className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-3.5 font-mono text-xs text-slate-800">
-                {vercelEnvText}
-              </pre>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50/60 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3">Category</th>
+                    <th className="px-5 py-3 text-right">Cash Inflow (₹)</th>
+                    <th className="px-5 py-3 text-right">Outflow / Spend (₹)</th>
+                    <th className="px-5 py-3 text-right">Net Impact (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {categoryBreakdown.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-5 py-8 text-center text-xs text-slate-500"
+                      >
+                        No category entries recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    categoryBreakdown.map((row) => (
+                      <tr key={row.category} className="hover:bg-slate-50/70">
+                        <td className="px-5 py-3 font-semibold text-slate-900">
+                          {row.category}
+                        </td>
+                        <td className="px-5 py-3 text-right font-mono text-emerald-700">
+                          {formatINRFromPaise(row.cashIn, {
+                            masked: privacyMasked,
+                          })}
+                        </td>
+                        <td className="px-5 py-3 text-right font-mono text-rose-700">
+                          {formatINRFromPaise(row.cashOut, {
+                            masked: privacyMasked,
+                          })}
+                        </td>
+                        <td
+                          className={`px-5 py-3 text-right font-mono font-bold ${
+                            row.net >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                          }`}
+                        >
+                          {formatINRFromPaise(row.net, {
+                            showSign: true,
+                            masked: privacyMasked,
+                          })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: PRD, DESIGN SYSTEM, ARCHITECTURE & V2 SQL SCHEMA */}
-      {activeSubTab === 'docs' && (
+      {/* TAB 2: SECURITY & PRIVACY CENTER */}
+      {activeTab === 'security' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="space-y-2.5 lg:col-span-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Engineering Specifications
-              </p>
-              <div className="mt-3 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedDocId('sql')}
-                  className={`w-full rounded-xl border p-3.5 text-left transition-colors ${
-                    selectedDocId === 'sql'
-                      ? 'border-emerald-300 bg-[#ECFDF5] text-emerald-950'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+          {/* Left 6 Columns: 4-Digit App PIN Lock & Privacy Masking */}
+          <div className="space-y-6 lg:col-span-6">
+            {/* 4-Digit App Security Lock Card */}
+            <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-6 shadow-2xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-indigo-200 bg-white text-indigo-700 shadow-2xs">
+                    <KeyRound className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">
+                      4-Digit Workspace Security PIN
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      {appPinHash
+                        ? 'Status: Active — Your workspace can be locked anytime with 1 click.'
+                        : 'Status: Not Set — Configure a 4-digit PIN to enable instant screen lock.'}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                    appPinHash
+                      ? 'bg-emerald-100 text-emerald-900'
+                      : 'bg-amber-100 text-amber-900'
                   }`}
                 >
-                  <p className="text-xs font-bold">
-                    Runnable PostgreSQL V2 Schema
+                  {appPinHash ? 'PIN Active' : 'Optional'}
+                </span>
+              </div>
+
+              <form onSubmit={handleSaveSecurityPin} className="mt-5 space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">
+                    {appPinHash
+                      ? 'Update 4-Digit Security PIN'
+                      : 'Create 4-Digit Security PIN'}
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      placeholder="Enter 4 digits (e.g. 4829)"
+                      value={pinInput}
+                      onChange={(e) =>
+                        setPinInput(
+                          e.target.value.replace(/\D/g, '').slice(0, 4)
+                        )
+                      }
+                      className="bg-white font-mono tracking-widest"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={pinInput.replace(/\D/g, '').length !== 4}
+                    >
+                      {appPinHash ? 'Update PIN' : 'Enable PIN'}
+                    </Button>
+                  </div>
+                </div>
+
+                {pinMessage && (
+                  <p className="text-xs font-semibold text-emerald-800">
+                    {pinMessage}
                   </p>
-                  <p className="mt-0.5 font-mono text-[11px] text-emerald-700">
-                    /supabase_schema_v2.sql
-                  </p>
-                </button>
-                {V2_DOCS_COLLECTION.map((doc) => (
-                  <button
-                    key={doc.id}
-                    type="button"
-                    onClick={() => setSelectedDocId(doc.id)}
-                    className={`w-full rounded-xl border p-3.5 text-left transition-colors ${
-                      selectedDocId === doc.id
-                        ? 'border-indigo-300 bg-[#EEF2FF] text-indigo-950'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <p className="text-xs font-bold">{doc.title}</p>
-                    <p className="mt-0.5 font-mono text-[11px] text-slate-500">
-                      {doc.fileName}
+                )}
+
+                {appPinHash && (
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="emerald"
+                      size="sm"
+                      onClick={lockApp}
+                    >
+                      <Lock className="mr-1.5 h-3.5 w-3.5" />
+                      Lock Workspace Now
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        removeAppSecurityPin();
+                        setPinMessage('App Security PIN removed.');
+                      }}
+                    >
+                      <Unlock className="mr-1.5 h-3.5 w-3.5" />
+                      Disable PIN Lock
+                    </Button>
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* Privacy Stealth Mode & Zero-Knowledge Encryption Summary */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
+              <h3 className="text-base font-bold text-slate-900">
+                Screen Privacy & Data Protection Controls
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Built-in safeguards when operating your Record Book in public or shared spaces.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">
+                      Public Screen Balance Masking (₹ ••••••)
                     </p>
-                  </button>
-                ))}
+                    <p className="text-[11px] text-slate-500">
+                      Hides all account balances, net worth, and voucher amounts across every screen.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={privacyMasked ? 'amber' : 'outline'}
+                    onClick={togglePrivacyMask}
+                  >
+                    {privacyMasked ? (
+                      <>
+                        <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+                        Masked (Show ₹)
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-1.5 h-3.5 w-3.5" />
+                        Mask Balances
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-[#ECFDF5]/60 p-4">
+                  <div>
+                    <p className="text-xs font-bold text-emerald-950">
+                      AES-256-GCM Password & PIN Vault
+                    </p>
+                    <p className="text-[11px] text-emerald-900/80">
+                      {vaultItems.length} encrypted credentials · PBKDF2 100,000-iteration key derivation
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-800 shadow-2xs">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Verified
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-8">
-            {selectedDocId === 'sql' ? (
+          {/* Right 6 Columns: Security Activity Audit Log */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs lg:col-span-6">
+            <div className="mb-4 flex items-center justify-between">
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">
-                      Fresh V2 PostgreSQL + Supabase RLS Schema
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Paste this in Supabase SQL Editor (`xelxvojazyscbounzajs`) and click Run.
-                    </p>
-                  </div>
-                  <Button size="sm" variant="emerald" onClick={handleCopySql} className="gap-1.5">
-                    <Copy className="h-3.5 w-3.5" />
-                    {copiedSql ? 'Copied SQL!' : 'Copy V2 SQL Script'}
-                  </Button>
-                </div>
-                <pre className="mt-4 max-h-[520px] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800">
-                  {V2_SQL_SCHEMA_CONTENT}
-                </pre>
+                <h2 className="text-base font-bold text-slate-900">
+                  Security Activity Audit Log
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Chronological record of security locks, vault decryptions, and account reconciliations
+                </p>
+              </div>
+              <ShieldAlert className="h-5 w-5 text-indigo-600" />
+            </div>
+
+            {securityAuditLog.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <p className="text-xs font-semibold text-slate-700">
+                  No security events logged in this session yet
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Events appear automatically when you toggle Privacy Stealth, configure your PIN, unlock Vault items, or export backups.
+                </p>
               </div>
             ) : (
-              <div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">
-                      {activeDoc.title}
-                    </h2>
-                    <p className="font-mono text-xs text-indigo-600">
-                      {activeDoc.fileName}
-                    </p>
+              <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1">
+                {securityAuditLog.map((evt) => (
+                  <div
+                    key={evt.id}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5 text-xs"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-900">{evt.action}</p>
+                      <p className="text-[11px] text-slate-600">{evt.detail}</p>
+                    </div>
+                    <span className="shrink-0 font-mono text-[10px] text-slate-500">
+                      {new Date(evt.timestamp).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </div>
-                  <FileCode2 className="h-5 w-5 text-indigo-600" />
-                </div>
-                <pre className="mt-4 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-5 font-sans text-sm leading-relaxed text-slate-800">
-                  {activeDoc.content}
-                </pre>
+                ))}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* TAB 3: FINANCIAL CATEGORY REPORTS & FULL JSON BACKUP */}
-      {activeSubTab === 'reports' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-7">
-            <h2 className="text-base font-bold text-slate-900">
-              Category-Wise Cash Flow Statement
-            </h2>
-            <p className="text-xs text-slate-500">
-              Aggregated from {entries.length} ledger vouchers, {accounts.length} accounts, {dues.length} dues, and {cards.length} cards.
-            </p>
-            <div className="mt-4 divide-y divide-slate-100">
-              {Object.entries(categoryTotals).map(([cat, vals]) => (
-                <div
-                  key={cat}
-                  className="flex items-center justify-between py-3 text-sm"
-                >
-                  <span className="font-semibold text-slate-800">{cat}</span>
-                  <div className="flex items-center gap-4 font-mono text-xs tabular-nums">
-                    {vals.inPaise > 0 && (
-                      <span className="font-bold text-emerald-700">
-                        +{formatINRFromPaise(vals.inPaise)}
-                      </span>
-                    )}
-                    {vals.outPaise > 0 && (
-                      <span className="font-bold text-rose-700">
-                        -{formatINRFromPaise(vals.outPaise)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+      {/* TAB 3: CLOUD ACCOUNT & DATA BACKUP */}
+      {activeTab === 'backup' && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Multi-Device Cloud Account Sync */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Multi-Device Cloud Account
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Sign in with your email and password to keep your books synchronized across Web and Mobile.
+                </p>
+              </div>
+              <Cloud className="h-5 w-5 text-indigo-600" />
             </div>
+
+            {userEmail ? (
+              <div className="mt-5 space-y-4 rounded-xl border border-emerald-200 bg-[#ECFDF5] p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                      Connected Account
+                    </p>
+                    <p className="mt-0.5 text-sm font-bold text-slate-900">
+                      {userEmail}
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      Status: {syncStatus.toUpperCase()}
+                      {lastSyncedAt ? ` · Last synced ${lastSyncedAt}` : ''}
+                    </p>
+                  </div>
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="emerald"
+                    onClick={() => void syncNowWithCloud()}
+                  >
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Sync Now
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void signOutSupabase()}
+                  >
+                    <LogOut className="mr-1.5 h-3.5 w-3.5" />
+                    Sign Out
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleAuthSubmit} className="mt-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('signin')}
+                    className={`rounded-xl border py-2 text-xs font-bold ${
+                      authMode === 'signin'
+                        ? 'border-indigo-300 bg-[#EEF2FF] text-indigo-950'
+                        : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('signup')}
+                    className={`rounded-xl border py-2 text-xs font-bold ${
+                      authMode === 'signup'
+                        ? 'border-indigo-300 bg-[#EEF2FF] text-indigo-950'
+                        : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                  >
+                    Create Account
+                  </button>
+                </div>
+
+                <Input
+                  type="email"
+                  required
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <Input
+                  type="password"
+                  required
+                  placeholder="Account password (min 6 chars)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+
+                {authMessage && (
+                  <p className="rounded-lg bg-slate-100 p-2.5 text-xs font-medium text-slate-800">
+                    {authMessage}
+                  </p>
+                )}
+
+                <Button type="submit" disabled={authBusy} className="w-full">
+                  {authBusy
+                    ? 'Connecting...'
+                    : authMode === 'signin'
+                      ? 'Sign In & Sync Workspace'
+                      : 'Create Cloud Account'}
+                </Button>
+              </form>
+            )}
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-5">
+          {/* Local JSON Backup Export, Restore & Workspace Utilities */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
             <h2 className="text-base font-bold text-slate-900">
-              Workspace Data & Portable JSON Backup
+              Data Backup & Workspace Utilities
             </h2>
-            <p className="text-xs text-slate-500">
-              Export or restore all 9 modules, load sample financial data, or reset the workspace to a clean ₹0.00 state.
+            <p className="mt-0.5 text-xs text-slate-500">
+              Export a complete offline backup file (`JSON`) of your accounts, cashbook, dues, cards, notes, and registers.
             </p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleDownloadJsonBackup}>
+                <Download className="mr-1.5 h-4 w-4" />
+                Download Backup (.json)
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => void loadSampleWorkspaceData()}
-                className="gap-1.5 border-indigo-200 bg-[#EEF2FF]/60 text-indigo-950 hover:bg-indigo-100/70"
+                className="border-indigo-200 bg-[#EEF2FF]/60 text-indigo-900 hover:bg-indigo-100"
               >
-                <Database className="h-4 w-4 text-indigo-600" />
-                <span>Load Sample Data</span>
+                <Sparkles className="mr-1.5 h-4 w-4 text-indigo-700" />
+                Load Sample Business Data
               </Button>
               <Button
-                variant="rose"
+                variant="outline"
                 onClick={() => void clearAllWorkspaceData()}
-                className="gap-1.5"
+                className="border-rose-200 bg-[#FFF1F2]/60 text-rose-900 hover:bg-rose-100"
               >
-                <RotateCcw className="h-4 w-4" />
-                <span>Reset All to ₹0</span>
+                <Trash2 className="mr-1.5 h-4 w-4 text-rose-700" />
+                Reset Workspace to ₹0
               </Button>
             </div>
 
-            <Button
-              variant="emerald"
-              onClick={handleDownloadBackup}
-              className="w-full gap-2"
-            >
-              <Download className="h-4 w-4" />
-              <span>Download Full V2 JSON Backup</span>
-            </Button>
-
-            <div className="border-t border-slate-100 pt-4">
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Paste V2 Backup JSON to Restore
+            <div className="mt-5 border-t border-slate-100 pt-4">
+              <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                Restore Workspace from Backup JSON
               </label>
               <textarea
                 rows={4}
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder='{"version": "2.0.0", "accounts": [...]}'
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-900"
+                placeholder='Paste exported backup JSON here...'
+                value={importJsonText}
+                onChange={(e) => setImportJsonText(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none"
               />
+              {importFeedback && (
+                <p className="mt-1 text-xs font-medium text-indigo-700">
+                  {importFeedback}
+                </p>
+              )}
               <Button
-                variant="outline"
-                onClick={handleRestoreBackup}
-                className="mt-2 w-full gap-2"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  const res = importFullBackupJson(importJsonText);
+                  if (res.ok) {
+                    logSecurityEvent(
+                      'Workspace Backup Restored',
+                      'Restored workspace records from JSON backup'
+                    );
+                  }
+                  setImportFeedback(
+                    res.ok
+                      ? 'Backup restored successfully.'
+                      : res.error || 'Invalid backup file'
+                  );
+                }}
               >
-                <Upload className="h-4 w-4" />
-                <span>Restore From JSON Snapshot</span>
+                <Upload className="mr-1.5 h-3.5 w-3.5" />
+                Restore Backup
               </Button>
+            </div>
+
+            {/* Workspace Inventory Summary */}
+            <div className="mt-5 grid grid-cols-3 gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-center text-xs">
+              <div>
+                <p className="font-mono font-bold text-slate-900">
+                  {accounts.length}
+                </p>
+                <p className="text-[11px] text-slate-500">Accounts</p>
+              </div>
+              <div>
+                <p className="font-mono font-bold text-slate-900">
+                  {entries.length}
+                </p>
+                <p className="text-[11px] text-slate-500">Transactions</p>
+              </div>
+              <div>
+                <p className="font-mono font-bold text-slate-900">
+                  {dues.length + cards.length + notes.length + sheets.length}
+                </p>
+                <p className="text-[11px] text-slate-500">Records & Notes</p>
+              </div>
             </div>
           </div>
         </div>

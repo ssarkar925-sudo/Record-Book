@@ -19,7 +19,9 @@ import {
   DEFAULT_V2_WORKSPACE_ID,
   ensureValidUuid,
   extractPaiseFromText,
+  hashSecurityPin,
   reconcileV2Records,
+  verifySecurityPin,
 } from '@/v2/engine/financialEngine';
 import { getSupabaseV2Client } from '@/v2/supabaseClient';
 
@@ -36,7 +38,17 @@ const KEYS = {
   confirmedIds: `${STORAGE_PREFIX}confirmed_cloud_ids`,
   deletedIds: `${STORAGE_PREFIX}deleted_tombstone_ids`,
   activeModule: `${STORAGE_PREFIX}active_module`,
+  privacyMasked: `${STORAGE_PREFIX}privacy_masked`,
+  appPinHash: `${STORAGE_PREFIX}app_pin_hash`,
+  securityAudit: `${STORAGE_PREFIX}security_audit_log`,
 };
+
+export interface SecurityAuditEvent {
+  id: string;
+  action: string;
+  detail: string;
+  timestamp: string;
+}
 
 const NOW_ISO = new Date().toISOString();
 
@@ -78,6 +90,12 @@ interface V2StoreState {
   lastSyncedAt: string | null;
   syncError: string | null;
 
+  // Production Security Controls
+  privacyMasked: boolean;
+  appPinHash: string | null;
+  isAppLocked: boolean;
+  securityAuditLog: SecurityAuditEvent[];
+
   accounts: V2Account[];
   entries: V2LedgerEntry[];
   dues: V2PartyDue[];
@@ -89,6 +107,14 @@ interface V2StoreState {
   setActiveModule: (mod: ModuleId) => void;
   setScopeFilter: (scope: 'all' | SphereScope) => void;
   setSearchQuery: (q: string) => void;
+
+  // Security Actions
+  togglePrivacyMask: () => void;
+  setAppSecurityPin: (pin: string) => void;
+  removeAppSecurityPin: () => void;
+  lockApp: () => void;
+  unlockAppWithPin: (pin: string) => boolean;
+  logSecurityEvent: (action: string, detail: string) => void;
 
   // Account Actions
   addAccount: (acc: Omit<V2Account, 'id' | 'workspace_id' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -275,6 +301,11 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
   lastSyncedAt: null,
   syncError: null,
 
+  privacyMasked: false,
+  appPinHash: null,
+  isAppLocked: false,
+  securityAuditLog: [],
+
   accounts: INITIAL_ACCOUNTS,
   entries: INITIAL_ENTRIES,
   dues: INITIAL_DUES,
@@ -293,6 +324,65 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
 
   setScopeFilter: (scope) => set({ scopeFilter: scope }),
   setSearchQuery: (q) => set({ searchQuery: q }),
+
+  logSecurityEvent: (action, detail) => {
+    const evt: SecurityAuditEvent = {
+      id: `sec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      action,
+      detail,
+      timestamp: new Date().toISOString(),
+    };
+    const next = [evt, ...get().securityAuditLog].slice(0, 40);
+    set({ securityAuditLog: next });
+    saveJSON(KEYS.securityAudit, next);
+  },
+
+  togglePrivacyMask: () => {
+    const next = !get().privacyMasked;
+    set({ privacyMasked: next });
+    saveJSON(KEYS.privacyMasked, next);
+    get().logSecurityEvent(
+      next ? 'Privacy Stealth Enabled' : 'Privacy Stealth Disabled',
+      next ? 'All currency balances masked on screen' : 'Currency balances visible on screen'
+    );
+  },
+
+  setAppSecurityPin: (pin) => {
+    const cleaned = pin.replace(/\D/g, '').slice(0, 4);
+    if (cleaned.length !== 4) return;
+    const hash = hashSecurityPin(cleaned);
+    set({ appPinHash: hash, isAppLocked: false });
+    saveJSON(KEYS.appPinHash, hash);
+    get().logSecurityEvent('App Security PIN Configured', '4-digit workspace lock PIN updated');
+  },
+
+  removeAppSecurityPin: () => {
+    set({ appPinHash: null, isAppLocked: false });
+    saveJSON(KEYS.appPinHash, null);
+    get().logSecurityEvent('App Security PIN Removed', '4-digit workspace lock PIN disabled');
+  },
+
+  lockApp: () => {
+    if (!get().appPinHash) return;
+    set({ isAppLocked: true });
+    get().logSecurityEvent('Workspace Locked', 'Locked manually via Security Lock control');
+  },
+
+  unlockAppWithPin: (pin) => {
+    const hash = get().appPinHash;
+    if (!hash) {
+      set({ isAppLocked: false });
+      return true;
+    }
+    const valid = verifySecurityPin(pin, hash);
+    if (valid) {
+      set({ isAppLocked: false });
+      get().logSecurityEvent('Workspace Unlocked', 'Verified 4-digit security PIN');
+      return true;
+    }
+    get().logSecurityEvent('Failed Unlock Attempt', 'Invalid 4-digit PIN entered at lock screen');
+    return false;
+  },
 
   addAccount: async (accInput) => {
     const now = new Date().toISOString();
@@ -887,6 +977,9 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     const savedSheets = loadJSON<V2Sheet[] | null>(KEYS.sheets, null);
     const savedNotes = loadJSON<V2Note[] | null>(KEYS.notes, null);
     const savedVault = loadJSON<V2VaultItem[] | null>(KEYS.vault, null);
+    const savedPrivacy = loadJSON<boolean>(KEYS.privacyMasked, false);
+    const savedPinHash = loadJSON<string | null>(KEYS.appPinHash, null);
+    const savedAudit = loadJSON<SecurityAuditEvent[]>(KEYS.securityAudit, []);
 
     set({
       accounts: Array.isArray(savedAccounts) ? savedAccounts : [],
@@ -896,13 +989,16 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
       sheets: Array.isArray(savedSheets) ? savedSheets : [],
       notes: Array.isArray(savedNotes) ? savedNotes : [],
       vaultItems: Array.isArray(savedVault) ? savedVault : [],
+      privacyMasked: Boolean(savedPrivacy),
+      appPinHash: savedPinHash || null,
+      securityAuditLog: Array.isArray(savedAudit) ? savedAudit : [],
     });
 
     await get().syncNowWithCloud();
 
     try {
       const { client, isConfigured } = getSupabaseV2Client();
-      if (isConfigured && !(window as any).__rb_v2_realtime_bound) {
+      if (isConfigured && get().userId && !(window as any).__rb_v2_realtime_bound) {
         (window as any).__rb_v2_realtime_bound = true;
         client
           .channel('rb-v2-multi-device-sync')
@@ -1058,7 +1154,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
   signInWithSupabase: async (email, password) => {
     const { client, isConfigured } = getSupabaseV2Client();
     if (!isConfigured) {
-      return { ok: false, error: 'Please configure your Supabase URL & Anon Key first.' };
+      return { ok: false, error: 'Cloud sync service is temporarily unavailable.' };
     }
     const { data, error } = await client.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
@@ -1067,6 +1163,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     if (error) return { ok: false, error: error.message };
     if (data?.user) {
       set({ userEmail: data.user.email || email, userId: data.user.id });
+      get().logSecurityEvent('Cloud Account Signed In', `Authenticated as ${data.user.email || email}`);
       await get().syncNowWithCloud();
     }
     return { ok: true };
@@ -1075,7 +1172,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
   signUpWithSupabase: async (email, password) => {
     const { client, isConfigured } = getSupabaseV2Client();
     if (!isConfigured) {
-      return { ok: false, error: 'Please configure your Supabase URL & Anon Key first.' };
+      return { ok: false, error: 'Cloud sync service is temporarily unavailable.' };
     }
     const { data, error } = await client.auth.signUp({
       email: email.trim().toLowerCase(),
@@ -1084,17 +1181,20 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     if (error) return { ok: false, error: error.message };
     if (data?.user) {
       set({ userEmail: data.user.email || email, userId: data.user.id });
+      get().logSecurityEvent('Cloud Account Created', `Registered ${data.user.email || email}`);
       await get().syncNowWithCloud();
     }
     return { ok: true };
   },
 
   signOutSupabase: async () => {
+    const prevEmail = get().userEmail;
     const { client, isConfigured } = getSupabaseV2Client();
     if (isConfigured) {
       await client.auth.signOut().catch(() => {});
     }
     set({ userEmail: null, userId: null, syncStatus: 'local_ready' });
+    get().logSecurityEvent('Cloud Account Signed Out', prevEmail ? `Signed out ${prevEmail}` : 'Session ended');
   },
 
   exportFullBackupJson: () => {

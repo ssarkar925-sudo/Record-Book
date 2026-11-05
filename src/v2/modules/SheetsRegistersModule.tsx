@@ -1,13 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  Download,
-  FileSpreadsheet,
-  Plus,
-  Trash2,
-} from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
+import { Download, FileSpreadsheet, Plus, Trash2 } from 'lucide-react';
+import { useV2Store } from '../store/useV2Store';
+import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
+import { SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,12 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { SphereScope } from '@/types/v2';
 
 export function SheetsRegistersModule() {
   const {
     sheets,
     scopeFilter,
+    privacyMasked,
     addSheet,
     addSheetRow,
     updateSheetCell,
@@ -30,20 +27,20 @@ export function SheetsRegistersModule() {
     deleteSheet,
   } = useV2Store();
 
-  const visibleSheets = sheets.filter(
-    (s) => scopeFilter === 'all' || s.scope === scopeFilter
+  const [createOpen, setCreateOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('GST & Tax Register');
+  const [scope, setScope] = useState<SphereScope>('business');
+
+  const visibleSheets = sheets.filter((s) =>
+    scopeFilter === 'all' ? true : s.scope === scopeFilter
   );
 
   const [selectedId, setSelectedId] = useState<string>(
-    visibleSheets[0]?.id || sheets[0]?.id || ''
+    visibleSheets[0]?.id || ''
   );
-  const [addSheetOpen, setAddSheetOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('GST & Stock Register');
-  const [scope, setScope] = useState<SphereScope>('business');
-
   const activeSheet =
-    visibleSheets.find((s) => s.id === selectedId) || visibleSheets[0] || sheets[0];
+    visibleSheets.find((s) => s.id === selectedId) || visibleSheets[0];
 
   const handleCreateSheet = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,139 +51,139 @@ export function SheetsRegistersModule() {
       scope,
     });
     setTitle('');
-    setAddSheetOpen(false);
+    setCreateOpen(false);
   };
 
-  const handleAddBlankRow = async () => {
+  const handleExportActiveSheetCsv = () => {
     if (!activeSheet) return;
-    const defaultCells: Record<string, string | number> = {};
-    activeSheet.columns.forEach((col, idx) => {
-      defaultCells[col.id] =
-        col.type === 'number' || col.type === 'currency'
-          ? 0
-          : idx === 0
-          ? `Entry #${activeSheet.rows.length + 1}`
-          : '';
-    });
-    await addSheetRow(activeSheet.id, defaultCells);
-  };
-
-  const handleExportSheetCsv = () => {
-    if (!activeSheet) return;
-    const headers = activeSheet.columns.map((c) => `"${c.name}"`).join(',');
+    const headers = activeSheet.columns.map((c) => `"${c.name}"`);
     const rows = activeSheet.rows.map((r) =>
       activeSheet.columns
         .map((c) => `"${String(r.cells[c.id] ?? '').replace(/"/g, '""')}"`)
         .join(',')
     );
-    const csv = [headers, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${activeSheet.title.toLowerCase().replace(/\s+/g, '_')}.csv`;
+    a.download = `${activeSheet.title.toLowerCase().replace(/\s+/g, '-')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
     <div className="space-y-6">
-      {/* Pastel Sky Header */}
-      <div className="rounded-2xl border border-sky-200 bg-[#EFF6FF] p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-sky-800">
-              Module 06 · Custom Tabular Spreadsheets & Registers
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Sheets & Business Registers
-            </h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Inline spreadsheet cells with automatic numeric & currency column summation.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            {activeSheet && (
-              <Button
-                variant="outline"
-                onClick={handleExportSheetCsv}
-                className="gap-2 bg-white"
-              >
-                <Download className="h-4 w-4" />
-                Export CSV
-              </Button>
-            )}
+      {/* Executive Header */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs sm:flex-row sm:items-center">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-[#EFF6FF] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-sky-900">
+            Custom Business Registers
+          </span>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900">
+            Spreadsheets & Registers
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Interactive tabular registers for GST invoices, inventory stock counts, and payroll with automatic column totals.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {activeSheet && (
             <Button
-              variant="default"
-              onClick={() => setAddSheetOpen(true)}
-              className="gap-2 bg-sky-700 text-white hover:bg-sky-800"
+              variant="outline"
+              size="sm"
+              onClick={handleExportActiveSheetCsv}
             >
-              <Plus className="h-4 w-4" />
-              + New Register Sheet
+              <Download className="mr-1.5 h-4 w-4 text-slate-600" />
+              Export CSV
             </Button>
-          </div>
+          )}
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            New Register Sheet
+          </Button>
         </div>
       </div>
 
-      {/* Sheet Selector Bar */}
+      {/* Sheet Selector Tabs */}
       <div className="flex flex-wrap items-center gap-2">
-        {visibleSheets.map((s) => {
-          const isSelected = activeSheet?.id === s.id;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setSelectedId(s.id)}
-              className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold transition-colors ${
-                isSelected
-                  ? 'border-sky-300 bg-[#EFF6FF] text-sky-950'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileSpreadsheet className="h-4 w-4 text-sky-700" />
-              <span>{s.title}</span>
-              <span className="font-mono text-[11px] text-slate-400">
-                ({s.rows.length})
-              </span>
-            </button>
-          );
-        })}
+        {visibleSheets.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSelectedId(s.id)}
+            className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-colors ${
+              activeSheet?.id === s.id
+                ? 'border-sky-300 bg-[#EFF6FF] text-sky-950'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>{s.title}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Active Spreadsheet Grid */}
-      {activeSheet ? (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-6 py-4">
+      {/* Active Sheet Grid */}
+      {!activeSheet ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <FileSpreadsheet className="mx-auto h-8 w-8 text-sky-600" />
+          <p className="mt-2 text-sm font-bold text-slate-800">
+            No registers created yet
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Create a custom register to track GST invoices, stock items, or staff attendance.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-[#EFF6FF]/60 px-5 py-3.5">
             <div>
-              <h2 className="text-base font-bold text-slate-900">
+              <h2 className="text-sm font-bold text-slate-900">
                 {activeSheet.title}
               </h2>
-              <p className="text-xs text-slate-500">
-                {activeSheet.category} · Scope: {activeSheet.scope.toUpperCase()} ·{' '}
+              <p className="text-xs text-slate-600">
+                {activeSheet.category} · Sphere: {activeSheet.scope} ·{' '}
                 {activeSheet.rows.length} rows
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="emerald" onClick={handleAddBlankRow}>
-                + Add Row
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const defaultCells: Record<string, string | number> = {};
+                  activeSheet.columns.forEach((col, i) => {
+                    defaultCells[col.id] =
+                      col.type === 'text'
+                        ? i === 0
+                          ? `Entry #${activeSheet.rows.length + 1}`
+                          : ''
+                        : 0;
+                  });
+                  void addSheetRow(activeSheet.id, defaultCells);
+                }}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add Row
               </Button>
-              {sheets.length > 1 && (
-                <Button
-                  size="sm"
-                  variant="rose"
-                  onClick={() => deleteSheet(activeSheet.id)}
-                >
-                  Delete Sheet
-                </Button>
-              )}
+              <button
+                type="button"
+                onClick={() => deleteSheet(activeSheet.id)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                title="Delete Entire Sheet"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                  <th className="w-12 px-4 py-3 text-center">#</th>
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="w-12 px-4 py-3">#</th>
                   {activeSheet.columns.map((col) => (
                     <th key={col.id} className="px-4 py-3">
                       {col.name}
@@ -195,33 +192,35 @@ export function SheetsRegistersModule() {
                   <th className="w-16 px-4 py-3 text-right">Row</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-slate-100">
                 {activeSheet.rows.map((row, idx) => (
                   <tr key={row.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-2.5 text-center font-mono text-xs text-slate-400">
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-400">
                       {idx + 1}
                     </td>
                     {activeSheet.columns.map((col) => {
-                      const val = row.cells[col.id] ?? '';
-                      const isNumeric =
-                        col.type === 'number' || col.type === 'currency';
+                      const rawVal = row.cells[col.id] ?? '';
                       return (
-                        <td key={col.id} className="px-3 py-2">
+                        <td key={col.id} className="px-4 py-2">
                           <input
-                            type={isNumeric ? 'number' : 'text'}
-                            value={val}
-                            onChange={(e) =>
-                              updateSheetCell(
+                            type={col.type === 'text' ? 'text' : 'number'}
+                            value={rawVal}
+                            onChange={(e) => {
+                              const nextVal =
+                                col.type === 'text'
+                                  ? e.target.value
+                                  : Number(e.target.value || 0);
+                              void updateSheetCell(
                                 activeSheet.id,
                                 row.id,
                                 col.id,
-                                isNumeric
-                                  ? Number(e.target.value || 0)
-                                  : e.target.value
-                              )
-                            }
-                            className={`w-full rounded-lg border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-slate-900 transition-colors focus:border-sky-400 focus:bg-white focus:outline-none ${
-                              isNumeric ? 'font-mono tabular-nums' : ''
+                                nextVal
+                              );
+                            }}
+                            className={`h-8 w-full rounded-lg border border-transparent bg-transparent px-2 text-xs focus:border-indigo-300 focus:bg-white focus:outline-none ${
+                              col.type !== 'text'
+                                ? 'font-mono font-semibold text-slate-900'
+                                : 'text-slate-800'
                             }`}
                           />
                         </td>
@@ -231,34 +230,41 @@ export function SheetsRegistersModule() {
                       <button
                         type="button"
                         onClick={() => deleteSheetRow(activeSheet.id, row.id)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        className="rounded-lg p-1 text-slate-400 hover:text-rose-600"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-slate-200 bg-[#EFF6FF]/60 font-mono text-xs font-bold text-slate-900">
-                  <td className="px-4 py-3 text-center">Σ</td>
+
+              {/* Automatic Column Sum Footer */}
+              <tfoot className="border-t-2 border-slate-200 bg-[#EEF2FF]/60 font-mono text-xs font-bold text-slate-900">
+                <tr>
+                  <td className="px-4 py-3">Σ</td>
                   {activeSheet.columns.map((col, idx) => {
-                    if (col.type === 'currency' || col.type === 'number') {
-                      const colSum = activeSheet.rows.reduce(
-                        (acc, r) => acc + (Number(r.cells[col.id]) || 0),
-                        0
-                      );
+                    if (col.type === 'text') {
                       return (
-                        <td key={col.id} className="px-5 py-3 tabular-nums">
-                          {col.type === 'currency'
-                            ? `₹${colSum.toLocaleString('en-IN')}`
-                            : colSum.toLocaleString('en-IN')}
+                        <td
+                          key={col.id}
+                          className="px-4 py-3 font-sans text-xs font-bold text-indigo-950"
+                        >
+                          {idx === 0 ? 'Column Totals' : ''}
                         </td>
                       );
                     }
+                    const sum = activeSheet.rows.reduce(
+                      (acc, r) => acc + (Number(r.cells[col.id]) || 0),
+                      0
+                    );
                     return (
-                      <td key={col.id} className="px-5 py-3 text-slate-500">
-                        {idx === 0 ? 'Column Totals' : '—'}
+                      <td key={col.id} className="px-6 py-3">
+                        {col.type === 'currency'
+                          ? formatINRFromPaise(rupeesToPaise(sum), {
+                              masked: privacyMasked,
+                            })
+                          : sum}
                       </td>
                     );
                   })}
@@ -268,15 +274,15 @@ export function SheetsRegistersModule() {
             </table>
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* New Sheet Modal */}
-      <Dialog open={addSheetOpen} onOpenChange={setAddSheetOpen}>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Custom Register Sheet</DialogTitle>
             <DialogDescription>
-              Create a spreadsheet register with automatic numeric and currency summation.
+              Creates a new spreadsheet with item, quantity, and auto-summed rupee columns.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSheet} className="space-y-4">
@@ -286,7 +292,7 @@ export function SheetsRegistersModule() {
               </label>
               <Input
                 required
-                placeholder="December Warehouse Dispatch Sheet"
+                placeholder="e.g. Q4 GST Dispatch Register"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
@@ -303,7 +309,7 @@ export function SheetsRegistersModule() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere Scope
+                  Sphere
                 </label>
                 <select
                   value={scope}
@@ -320,7 +326,7 @@ export function SheetsRegistersModule() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setAddSheetOpen(false)}
+                onClick={() => setCreateOpen(false)}
               >
                 Cancel
               </Button>

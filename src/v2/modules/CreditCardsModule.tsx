@@ -8,11 +8,9 @@ import {
   ShoppingBag,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
-import {
-  formatINRFromPaise,
-  rupeesToPaise,
-} from '@/v2/engine/financialEngine';
+import { useV2Store } from '../store/useV2Store';
+import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
+import { CardNetwork, SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,13 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { CardNetwork, SphereScope, V2CreditCard } from '@/types/v2';
 
 export function CreditCardsModule() {
   const {
     cards,
     accounts,
     scopeFilter,
+    privacyMasked,
     addCreditCard,
     recordCardSpend,
     payCardBill,
@@ -36,151 +34,183 @@ export function CreditCardsModule() {
   } = useV2Store();
 
   const [addOpen, setAddOpen] = useState(false);
-  const [spendTarget, setSpendTarget] = useState<V2CreditCard | null>(null);
-  const [billTarget, setBillTarget] = useState<V2CreditCard | null>(null);
+  const [spendCardId, setSpendCardId] = useState<string | null>(null);
+  const [billCardId, setBillCardId] = useState<string | null>(null);
 
-  // New Card State
+  // Add Card State
   const [cardName, setCardName] = useState('');
   const [bankName, setBankName] = useState('');
   const [last4, setLast4] = useState('');
   const [network, setNetwork] = useState<CardNetwork>('visa');
-  const [limitRupees, setLimitRupees] = useState('300000');
+  const [limitRupees, setLimitRupees] = useState('');
   const [utilizedRupees, setUtilizedRupees] = useState('0');
-  const [statementDay, setStatementDay] = useState('15');
+  const [statementDay, setStatementDay] = useState('18');
   const [dueDay, setDueDay] = useState('5');
   const [scope, setScope] = useState<SphereScope>('business');
 
   // Spend State
   const [spendRupees, setSpendRupees] = useState('');
-  const [spendCategory, setSpendCategory] = useState('Cloud & Vendor Purchase');
+  const [spendCategory, setSpendCategory] = useState('Business Procurement');
   const [spendNote, setSpendNote] = useState('');
 
   // Bill Pay State
   const [billRupees, setBillRupees] = useState('');
-  const [fromAccountId, setFromAccountId] = useState(accounts[0]?.id || '');
+  const [billFromAccountId, setBillFromAccountId] = useState(
+    accounts[0]?.id || ''
+  );
 
-  const visibleCards = cards.filter(
-    (c) => scopeFilter === 'all' || c.scope === scopeFilter
+  const visibleCards = cards.filter((c) =>
+    scopeFilter === 'all' ? true : c.scope === scopeFilter
   );
 
   const totalLimitPaise = visibleCards.reduce(
-    (sum, c) => sum + c.credit_limit_paise,
+    (s, c) => s + c.credit_limit_paise,
     0
   );
   const totalUtilizedPaise = visibleCards.reduce(
-    (sum, c) => sum + c.utilized_paise,
+    (s, c) => s + c.utilized_paise,
     0
   );
+  const totalAvailablePaise = Math.max(0, totalLimitPaise - totalUtilizedPaise);
+  const overallUtilPct =
+    totalLimitPaise > 0
+      ? Math.round((totalUtilizedPaise / totalLimitPaise) * 100)
+      : 0;
 
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cardName.trim()) return;
     await addCreditCard({
       card_name: cardName.trim(),
-      bank_name: bankName.trim() || 'Bank',
-      last4: last4.trim() || '8899',
+      bank_name: bankName.trim() || 'Bank Card',
+      last4: last4.trim() || '0000',
       network,
-      credit_limit_paise: rupeesToPaise(limitRupees),
+      credit_limit_paise: rupeesToPaise(limitRupees || '100000'),
       utilized_paise: rupeesToPaise(utilizedRupees || '0'),
-      statement_day: Number(statementDay) || 15,
+      statement_day: Number(statementDay) || 18,
       due_day: Number(dueDay) || 5,
       scope,
     });
     setCardName('');
     setBankName('');
     setLast4('');
+    setLimitRupees('');
+    setUtilizedRupees('0');
     setAddOpen(false);
   };
 
-  const handleRecordSpend = async (e: React.FormEvent) => {
+  const handleSpend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!spendTarget) return;
+    if (!spendCardId) return;
     const paise = rupeesToPaise(spendRupees);
     if (paise <= 0) return;
+
     await recordCardSpend({
-      cardId: spendTarget.id,
+      cardId: spendCardId,
       amountPaise: paise,
-      category: spendCategory,
-      note: spendNote,
+      category: spendCategory.trim(),
+      note: spendNote.trim(),
     });
+    setSpendCardId(null);
     setSpendRupees('');
     setSpendNote('');
-    setSpendTarget(null);
   };
 
   const handlePayBill = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!billTarget) return;
+    if (!billCardId) return;
     const paise = rupeesToPaise(billRupees);
     if (paise <= 0) return;
+
     await payCardBill({
-      cardId: billTarget.id,
+      cardId: billCardId,
       amountPaise: paise,
-      fromAccountId: fromAccountId || accounts[0]?.id,
+      fromAccountId: billFromAccountId || accounts[0]?.id || '',
     });
+    setBillCardId(null);
     setBillRupees('');
-    setBillTarget(null);
   };
 
   return (
     <div className="space-y-6">
-      {/* Pastel Rose Header */}
-      <div className="rounded-2xl border border-rose-200 bg-[#FFF1F2] p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-rose-800">
-              Module 05 · Credit Line Utilization & Statement Cycle
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Credit Cards Portfolio
-            </h1>
-            <p className="mt-1 text-sm text-slate-700">
-              Total Utilized:{' '}
-              <span className="font-mono font-bold text-rose-800">
-                {formatINRFromPaise(totalUtilizedPaise)}
-              </span>{' '}
-              of{' '}
-              <span className="font-mono font-semibold text-slate-900">
-                {formatINRFromPaise(totalLimitPaise)}
-              </span>{' '}
-              Available Credit Line
-            </p>
-          </div>
-          <Button
-            variant="default"
-            onClick={() => setAddOpen(true)}
-            className="gap-2 bg-rose-700 text-white hover:bg-rose-800"
-          >
-            <Plus className="h-4 w-4" />
-            + Add Credit Card
-          </Button>
+      {/* Executive Header */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs sm:flex-row sm:items-center">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-[#FFF1F2] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-rose-900">
+            Credit Lines & Statement Cycles
+          </span>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900">
+            Credit Cards & Utilization
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Monitor credit limits, statement billing dates, and settle monthly card bills directly from your bank accounts.
+          </p>
+        </div>
+
+        <Button variant="rose" onClick={() => setAddOpen(true)}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          Add Credit Card
+        </Button>
+      </div>
+
+      {/* 3-Card Credit Summary Strip */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] to-white p-5 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-rose-900">
+            Current Statement Utilized
+          </p>
+          <p className="mt-2 font-mono text-2xl font-extrabold text-rose-950">
+            {formatINRFromPaise(totalUtilizedPaise, { masked: privacyMasked })}
+          </p>
+          <p className="mt-1 text-[11px] text-rose-900/80">
+            Overall utilization: {overallUtilPct}%
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] to-white p-5 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+            Available Credit Headroom
+          </p>
+          <p className="mt-2 font-mono text-2xl font-extrabold text-emerald-950">
+            {formatINRFromPaise(totalAvailablePaise, { masked: privacyMasked })}
+          </p>
+          <p className="mt-1 text-[11px] text-emerald-900/80">
+            Unutilized spending power
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-5 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+            Combined Sanctioned Limit
+          </p>
+          <p className="mt-2 font-mono text-2xl font-extrabold text-slate-900">
+            {formatINRFromPaise(totalLimitPaise, { masked: privacyMasked })}
+          </p>
+          <p className="mt-1 text-[11px] text-indigo-900/80">
+            Across {visibleCards.length} active credit cards
+          </p>
         </div>
       </div>
 
       {/* Cards Grid */}
       {visibleCards.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-          <CreditCard className="mx-auto h-9 w-9 text-rose-600" />
-          <h3 className="mt-3 text-base font-bold text-slate-900">
-            No credit cards tracked in this sphere yet
-          </h3>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <CreditCard className="mx-auto h-8 w-8 text-rose-500" />
+          <h2 className="mt-3 text-base font-bold text-slate-900">
+            No credit cards configured
+          </h2>
           <p className="mt-1 text-xs text-slate-500">
-            Add your business or personal credit cards to monitor statement dates, credit limits, and utilization ratios.
+            Add your business or personal credit cards to track statement dates, utilization ratio, and bill settlements.
           </p>
-          <div className="mt-4 flex justify-center">
-            <Button
-              onClick={() => setAddOpen(true)}
-              className="gap-2 bg-rose-700 text-white hover:bg-rose-800"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add First Credit Card</span>
-            </Button>
-          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {visibleCards.map((card) => {
-            const utilPct =
+            const avail = Math.max(
+              0,
+              card.credit_limit_paise - card.utilized_paise
+            );
+            const ratio =
               card.credit_limit_paise > 0
                 ? Math.min(
                     100,
@@ -189,101 +219,126 @@ export function CreditCardsModule() {
                     )
                   )
                 : 0;
-            const availablePaise = Math.max(
-              0,
-              card.credit_limit_paise - card.utilized_paise
-            );
+            const healthLabel =
+              ratio <= 30
+                ? 'Optimal (<30%)'
+                : ratio <= 65
+                  ? 'Moderate'
+                  : 'High Utilization';
 
             return (
               <div
                 key={card.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6"
+                className="flex flex-col justify-between rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] via-white to-[#EEF2FF]/60 p-6 shadow-2xs"
               >
                 <div>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-200 bg-[#FFF1F2] text-rose-700">
-                        <CreditCard className="h-5 w-5" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-900">
+                          {card.network}
+                        </span>
+                        <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold capitalize text-slate-600">
+                          {card.scope}
+                        </span>
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                            ratio <= 30
+                              ? 'bg-emerald-100 text-emerald-900'
+                              : ratio <= 65
+                                ? 'bg-amber-100 text-amber-900'
+                                : 'bg-rose-100 text-rose-900'
+                          }`}
+                        >
+                          {healthLabel}
+                        </span>
                       </div>
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900">
-                          {card.card_name}
-                        </h3>
-                        <p className="text-xs text-slate-500">
-                          {card.bank_name} · •••• {card.last4} ·{' '}
-                          {card.network.toUpperCase()} · {card.scope}
-                        </p>
-                      </div>
+                      <h3 className="mt-2 text-lg font-bold text-slate-900">
+                        {card.card_name}
+                      </h3>
+                      <p className="font-mono text-xs text-slate-600">
+                        {card.bank_name} · •••• •••• •••• {card.last4}
+                      </p>
                     </div>
+
                     <button
                       type="button"
                       onClick={() => deleteCreditCard(card.id)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"
+                      title="Delete Card"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
 
-                  {/* Utilization Bar (Single-Elevation Hairline Divider) */}
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-600">
-                        Current Statement Utilized
+                  {/* Utilization Bar */}
+                  <div className="mt-5">
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">
+                        Utilized:{' '}
+                        <strong className="font-mono text-rose-800">
+                          {formatINRFromPaise(card.utilized_paise, {
+                            masked: privacyMasked,
+                          })}
+                        </strong>{' '}
+                        ({ratio}%)
                       </span>
-                      <span className="font-mono font-bold tabular-nums text-slate-800">
-                        {utilPct}% Utilized
+                      <span className="font-mono text-slate-600">
+                        Available:{' '}
+                        {formatINRFromPaise(avail, { masked: privacyMasked })}
                       </span>
                     </div>
-                    <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-rose-800">
-                      {formatINRFromPaise(card.utilized_paise)}
-                    </p>
-                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-white">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          utilPct > 50
-                            ? 'bg-rose-600'
-                            : utilPct > 25
+                          ratio > 70
+                            ? 'bg-rose-500'
+                            : ratio > 30
                               ? 'bg-amber-500'
-                              : 'bg-emerald-600'
+                              : 'bg-emerald-500'
                         }`}
-                        style={{ width: `${utilPct}%` }}
+                        style={{ width: `${ratio}%` }}
                       />
-                    </div>
-                    <div className="mt-2 flex items-center justify-between font-mono text-[11px] tabular-nums text-slate-500">
-                      <span>Available: {formatINRFromPaise(availablePaise)}</span>
-                      <span>
-                        Limit: {formatINRFromPaise(card.credit_limit_paise)}
-                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-                  <span className="text-xs text-slate-500">
-                    Statement: Day {card.statement_day} · Due: Day {card.due_day}
-                  </span>
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-rose-200/60 pt-4">
+                  <div className="text-xs text-slate-600">
+                    Statement:{' '}
+                    <strong className="text-slate-800">
+                      Day {card.statement_day}
+                    </strong>{' '}
+                    · Due:{' '}
+                    <strong className="text-rose-800">
+                      Day {card.due_day}
+                    </strong>
+                  </div>
+
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setSpendTarget(card)}
-                      className="gap-1.5"
+                      onClick={() => {
+                        setSpendCardId(card.id);
+                        setSpendRupees('');
+                      }}
                     >
-                      <ShoppingBag className="h-3.5 w-3.5" />
-                      <span>+ Card Spend</span>
+                      <ShoppingBag className="mr-1.5 h-3.5 w-3.5" />
+                      Record Spend
                     </Button>
                     <Button
                       size="sm"
                       variant="emerald"
                       disabled={card.utilized_paise <= 0}
                       onClick={() => {
-                        setBillTarget(card);
-                        setBillRupees((card.utilized_paise / 100).toString());
+                        setBillCardId(card.id);
+                        setBillRupees(String(card.utilized_paise / 100));
+                        setBillFromAccountId(accounts[0]?.id || '');
                       }}
-                      className="gap-1.5"
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Pay Bill</span>
+                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                      Pay Bill
                     </Button>
                   </div>
                 </div>
@@ -299,18 +354,18 @@ export function CreditCardsModule() {
           <DialogHeader>
             <DialogTitle>Add Credit Card</DialogTitle>
             <DialogDescription>
-              Track credit limits, utilization ratios, statement dates, and bill settlements.
+              Configure credit limit, statement day, and due day.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddCard} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Card Name *
                 </label>
                 <Input
                   required
-                  placeholder="HDFC Infinia / Regalia"
+                  placeholder="e.g. HDFC Infinia / ICICI Amazon Pay"
                   value={cardName}
                   onChange={(e) => setCardName(e.target.value)}
                 />
@@ -326,6 +381,7 @@ export function CreditCardsModule() {
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
@@ -333,7 +389,7 @@ export function CreditCardsModule() {
                 </label>
                 <Input
                   maxLength={4}
-                  placeholder="8842"
+                  placeholder="4821"
                   value={last4}
                   onChange={(e) => setLast4(e.target.value)}
                 />
@@ -368,28 +424,33 @@ export function CreditCardsModule() {
                 </select>
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Total Credit Limit (₹)
+                  Total Credit Limit (₹) *
                 </label>
                 <Input
                   type="number"
+                  required
+                  placeholder="300000"
                   value={limitRupees}
                   onChange={(e) => setLimitRupees(e.target.value)}
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Current Utilized Balance (₹)
+                  Current Unbilled / Utilized (₹)
                 </label>
                 <Input
                   type="number"
+                  placeholder="0"
                   value={utilizedRupees}
                   onChange={(e) => setUtilizedRupees(e.target.value)}
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
@@ -416,29 +477,36 @@ export function CreditCardsModule() {
                 />
               </div>
             </div>
+
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAddOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit">Save Credit Card</Button>
+              <Button type="submit" variant="rose">
+                Save Credit Card
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Record Spend Modal */}
+      {/* Record Card Spend Modal */}
       <Dialog
-        open={Boolean(spendTarget)}
-        onOpenChange={(o) => !o && setSpendTarget(null)}
+        open={Boolean(spendCardId)}
+        onOpenChange={(o) => !o && setSpendCardId(null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Record Spend · {spendTarget?.card_name}</DialogTitle>
+            <DialogTitle>Record Credit Card Spend</DialogTitle>
             <DialogDescription>
-              Increases card utilized balance and logs a card spend entry in the ledger.
+              Increases card utilization and logs the purchase in your Cashbook.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleRecordSpend} className="space-y-4">
+          <form onSubmit={handleSpend} className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
                 Purchase Amount (₹) *
@@ -447,7 +515,7 @@ export function CreditCardsModule() {
                 type="number"
                 step="0.01"
                 required
-                placeholder="3500"
+                placeholder="4500"
                 value={spendRupees}
                 onChange={(e) => setSpendRupees(e.target.value)}
               />
@@ -463,10 +531,10 @@ export function CreditCardsModule() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Merchant / Description
+                Merchant / Note
               </label>
               <Input
-                placeholder="AWS Cloud / Airline Ticket"
+                placeholder="AWS Cloud / Flight Ticket / Vendor Supplies"
                 value={spendNote}
                 onChange={(e) => setSpendNote(e.target.value)}
               />
@@ -475,32 +543,34 @@ export function CreditCardsModule() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setSpendTarget(null)}
+                onClick={() => setSpendCardId(null)}
               >
                 Cancel
               </Button>
-              <Button type="submit">Record Spend</Button>
+              <Button type="submit" variant="rose">
+                Record Spend
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Pay Bill Modal */}
+      {/* Pay Card Bill Modal */}
       <Dialog
-        open={Boolean(billTarget)}
-        onOpenChange={(o) => !o && setBillTarget(null)}
+        open={Boolean(billCardId)}
+        onOpenChange={(o) => !o && setBillCardId(null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Pay Credit Card Bill · {billTarget?.card_name}</DialogTitle>
+            <DialogTitle>Settle Credit Card Statement Bill</DialogTitle>
             <DialogDescription>
-              Deducts payment from your chosen bank account and clears card utilization.
+              Debits your selected bank account and restores your card credit limit.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handlePayBill} className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Payment Amount (₹) *
+                Bill Payment Amount (₹) *
               </label>
               <Input
                 type="number"
@@ -515,13 +585,17 @@ export function CreditCardsModule() {
                 Pay From Bank Account
               </label>
               <select
-                value={fromAccountId}
-                onChange={(e) => setFromAccountId(e.target.value)}
+                value={billFromAccountId}
+                onChange={(e) => setBillFromAccountId(e.target.value)}
                 className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.name} ({formatINRFromPaise(a.balance_paise)})
+                    {a.name} (
+                    {formatINRFromPaise(a.balance_paise, {
+                      masked: privacyMasked,
+                    })}
+                    )
                   </option>
                 ))}
               </select>
@@ -530,11 +604,13 @@ export function CreditCardsModule() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setBillTarget(null)}
+                onClick={() => setBillCardId(null)}
               >
                 Cancel
               </Button>
-              <Button type="submit">Pay Bill & Update Ledger</Button>
+              <Button type="submit" variant="emerald">
+                Pay Bill Now
+              </Button>
             </div>
           </form>
         </DialogContent>

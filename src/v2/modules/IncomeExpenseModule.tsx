@@ -1,18 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ArrowDownLeft,
   ArrowUpRight,
   Download,
+  Plus,
   Search,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
-import {
-  formatINRFromPaise,
-  rupeesToPaise,
-} from '@/v2/engine/financialEngine';
+import { useV2Store } from '../store/useV2Store';
+import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
+import { LedgerEntryType, PaymentMode, SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,7 +21,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { LedgerEntryType, PaymentMode, SphereScope } from '@/types/v2';
 
 export function IncomeExpenseModule() {
   const {
@@ -30,48 +28,48 @@ export function IncomeExpenseModule() {
     accounts,
     scopeFilter,
     searchQuery,
+    privacyMasked,
     addLedgerEntry,
     deleteLedgerEntry,
   } = useV2Store();
 
-  const [typeFilter, setTypeFilter] = useState<'all' | 'inflow' | 'outflow'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | LedgerEntryType>('all');
   const [modeFilter, setModeFilter] = useState<'all' | PaymentMode>('all');
   const [localSearch, setLocalSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
 
-  // New Entry State
-  const [entryType, setEntryType] = useState<LedgerEntryType>('expense');
+  // Form State
+  const [entryType, setEntryType] = useState<'cash_in' | 'expense'>('expense');
   const [amountRupees, setAmountRupees] = useState('');
-  const [category, setCategory] = useState('Inventory & Stock');
+  const [category, setCategory] = useState('Operations & Supplies');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('upi');
   const [accountId, setAccountId] = useState(accounts[0]?.id || '');
-  const [scope, setScope] = useState<SphereScope>('business');
   const [note, setNote] = useState('');
+  const [scope, setScope] = useState<SphereScope>('business');
 
-  const combinedQuery = (localSearch || searchQuery).toLowerCase().trim();
+  const filtered = useMemo(() => {
+    const q = (localSearch || searchQuery).trim().toLowerCase();
+    return entries
+      .filter((e) => (scopeFilter === 'all' ? true : e.scope === scopeFilter))
+      .filter((e) => (typeFilter === 'all' ? true : e.entry_type === typeFilter))
+      .filter((e) =>
+        modeFilter === 'all' ? true : e.payment_mode === modeFilter
+      )
+      .filter((e) =>
+        !q
+          ? true
+          : e.note.toLowerCase().includes(q) ||
+            e.category.toLowerCase().includes(q)
+      );
+  }, [entries, scopeFilter, typeFilter, modeFilter, localSearch, searchQuery]);
 
-  const filteredEntries = entries.filter((e) => {
-    if (scopeFilter !== 'all' && e.scope !== scopeFilter) return false;
-    if (typeFilter === 'inflow' && e.entry_type !== 'cash_in') return false;
-    if (typeFilter === 'outflow' && e.entry_type === 'cash_in') return false;
-    if (modeFilter !== 'all' && e.payment_mode !== modeFilter) return false;
-    if (
-      combinedQuery &&
-      !e.category.toLowerCase().includes(combinedQuery) &&
-      !e.note.toLowerCase().includes(combinedQuery)
-    ) {
-      return false;
-    }
-    return true;
-  });
-
-  const totalInPaise = filteredEntries
+  const totalIn = filtered
     .filter((e) => e.entry_type === 'cash_in')
-    .reduce((sum, e) => sum + e.amount_paise, 0);
-
-  const totalOutPaise = filteredEntries
+    .reduce((s, e) => s + e.amount_paise, 0);
+  const totalOut = filtered
     .filter((e) => e.entry_type !== 'cash_in' && e.entry_type !== 'transfer')
-    .reduce((sum, e) => sum + e.amount_paise, 0);
+    .reduce((s, e) => s + e.amount_paise, 0);
+  const netSurplus = totalIn - totalOut;
 
   const handleAddEntry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,10 +79,10 @@ export function IncomeExpenseModule() {
     await addLedgerEntry({
       entry_type: entryType,
       amount_paise: paise,
-      category: category.trim() || 'General Entry',
+      category: category.trim() || 'General',
       payment_mode: paymentMode,
       account_id: accountId || accounts[0]?.id,
-      note: note.trim() || category.trim(),
+      note: note.trim() || `${category} (${paymentMode.toUpperCase()})`,
       entry_date: new Date().toISOString(),
       scope,
     });
@@ -95,231 +93,249 @@ export function IncomeExpenseModule() {
   };
 
   const handleExportCsv = () => {
-    const header = [
-      'Date',
-      'Type',
-      'Category',
-      'Mode',
-      'Scope',
-      'Amount_INR',
-      'Narration',
-    ];
-    const rows = filteredEntries.map((e) => [
-      e.entry_date.slice(0, 10),
-      e.entry_type,
-      `"${e.category.replace(/"/g, '""')}"`,
-      e.payment_mode,
-      e.scope,
-      (e.amount_paise / 100).toFixed(2),
-      `"${e.note.replace(/"/g, '""')}"`,
+    const headers = ['Date', 'Type', 'Category', 'Narration', 'Mode', 'Scope', 'Amount_INR'];
+    const rows = filtered.map((tx) => [
+      new Date(tx.entry_date).toISOString().slice(0, 10),
+      tx.entry_type,
+      `"${(tx.category || '').replace(/"/g, '""')}"`,
+      `"${(tx.note || '').replace(/"/g, '""')}"`,
+      tx.payment_mode.toUpperCase(),
+      tx.scope,
+      (tx.amount_paise / 100).toFixed(2),
     ]);
-    const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `record_book_v2_ledger_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `record-book-cashbook-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
     <div className="space-y-6">
-      {/* Pastel Sky Header */}
-      <div className="rounded-2xl border border-sky-200 bg-[#EFF6FF] p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold text-sky-800">
-              03. Double-Entry Cashbook & Expense Journal
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Income & Expense Ledger
-            </h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Total Cash In:{' '}
-              <span className="font-mono font-bold tabular-nums text-emerald-700">
-                +{formatINRFromPaise(totalInPaise)}
-              </span>{' '}
-              · Total Outflow:{' '}
-              <span className="font-mono font-bold tabular-nums text-rose-700">
-                -{formatINRFromPaise(totalOutPaise)}
-              </span>
-            </p>
-          </div>
+      {/* Executive Header */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs sm:flex-row sm:items-center">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-[#EFF6FF] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-sky-900">
+            Double-Entry Cashbook
+          </span>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900">
+            Cashbook & Expense Journal
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Every voucher automatically updates your linked bank or cash balance and P&L statements.
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              variant="outline"
-              onClick={handleExportCsv}
-              className="gap-2 bg-white whitespace-nowrap"
-            >
-              <Download className="h-4 w-4" />
-              <span>Export CSV</span>
-            </Button>
-            <Button
-              variant="emerald"
-              onClick={() => {
-                setEntryType('cash_in');
-                setCategory('Sales & Revenue');
-                setModalOpen(true);
-              }}
-              className="gap-1.5 whitespace-nowrap"
-            >
-              <ArrowDownLeft className="h-4 w-4" />
-              <span>+ Cash In</span>
-            </Button>
-            <Button
-              variant="rose"
-              onClick={() => {
-                setEntryType('expense');
-                setCategory('Business Expense');
-                setModalOpen(true);
-              }}
-              className="gap-1.5 whitespace-nowrap"
-            >
-              <ArrowUpRight className="h-4 w-4" />
-              <span>- Add Expense</span>
-            </Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={filtered.length === 0}
+          >
+            <Download className="mr-1.5 h-4 w-4 text-slate-600" />
+            Export CSV
+          </Button>
+          <Button
+            variant="emerald"
+            onClick={() => {
+              setEntryType('cash_in');
+              setCategory('Sales & Revenue');
+              setAccountId(accounts[0]?.id || '');
+              setModalOpen(true);
+            }}
+          >
+            <ArrowDownLeft className="mr-1.5 h-4 w-4" />
+            Record Cash In
+          </Button>
+          <Button
+            variant="rose"
+            onClick={() => {
+              setEntryType('expense');
+              setCategory('Operations & Supplies');
+              setAccountId(accounts[0]?.id || '');
+              setModalOpen(true);
+            }}
+          >
+            <ArrowUpRight className="mr-1.5 h-4 w-4" />
+            Record Expense
+          </Button>
         </div>
       </div>
 
-      {/* Filter Bar (Type + Payment Mode + Search) */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 lg:flex-row lg:items-center lg:justify-between">
+      {/* 3-Card Summary Strip */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] to-white p-4 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+            Filtered Cash In (Income)
+          </p>
+          <p className="mt-1.5 font-mono text-2xl font-extrabold text-emerald-950">
+            +{formatINRFromPaise(totalIn, { masked: privacyMasked })}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] to-white p-4 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-rose-900">
+            Filtered Outflows & Expenses
+          </p>
+          <p className="mt-1.5 font-mono text-2xl font-extrabold text-rose-950">
+            -{formatINRFromPaise(totalOut, { masked: privacyMasked })}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-4 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+            Net Cashflow Surplus
+          </p>
+          <p
+            className={`mt-1.5 font-mono text-2xl font-extrabold ${
+              netSurplus >= 0 ? 'text-emerald-800' : 'text-rose-800'
+            }`}
+          >
+            {formatINRFromPaise(netSurplus, {
+              showSign: true,
+              masked: privacyMasked,
+            })}
+          </p>
+        </div>
+      </div>
+
+      {/* Filter & Search Toolbar */}
+      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs lg:flex-row lg:items-center">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              { id: 'all', label: 'All Entries' },
+              { id: 'cash_in', label: 'Cash In' },
+              { id: 'expense', label: 'Expenses' },
+              { id: 'card_spend', label: 'Card Spends' },
+              { id: 'transfer', label: 'Transfers' },
+            ] as { id: 'all' | LedgerEntryType; label: string }[]
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setTypeFilter(tab.id)}
+              className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                typeFilter === tab.id
+                  ? 'border-indigo-300 bg-[#EEF2FF] text-indigo-950'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
-            {(
-              [
-                { id: 'all', label: `All (${filteredEntries.length})` },
-                { id: 'inflow', label: 'Cash In' },
-                { id: 'outflow', label: 'Outflow' },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setTypeFilter(tab.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
-                  typeFilter === tab.id
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <select
+            value={modeFilter}
+            onChange={(e) =>
+              setModeFilter(e.target.value as 'all' | PaymentMode)
+            }
+            className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700"
+          >
+            <option value="all">All Payment Modes</option>
+            <option value="upi">UPI</option>
+            <option value="bank">Bank Transfer</option>
+            <option value="cash">Physical Cash</option>
+            <option value="card">Card</option>
+          </select>
 
-          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
-            {(
-              [
-                { id: 'all', label: 'All Modes' },
-                { id: 'upi', label: 'UPI' },
-                { id: 'bank', label: 'Bank' },
-                { id: 'cash', label: 'Cash' },
-                { id: 'card', label: 'Card' },
-              ] as const
-            ).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setModeFilter(m.id)}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
-                  modeFilter === m.id
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
+          <div className="relative w-full sm:w-56">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Filter category or note..."
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none"
+            />
           </div>
-        </div>
-
-        <div className="relative w-full lg:w-72">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="Filter category or narration..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-9"
-          />
         </div>
       </div>
 
-      {/* High-Density Ledger Table (Zero Row Dot Scatter, Tabular Numerals) */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {/* Ledger Table */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-600">
-                <th className="px-5 py-3.5">Date</th>
-                <th className="px-5 py-3.5">Category & Narration</th>
-                <th className="px-5 py-3.5">Account & Mode</th>
-                <th className="px-5 py-3.5">Scope</th>
-                <th className="px-5 py-3.5 text-right">Amount (₹)</th>
-                <th className="px-5 py-3.5 text-right">Action</th>
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-4 py-3.5">Date</th>
+                <th className="px-4 py-3.5">Category & Narration</th>
+                <th className="px-4 py-3.5">Account / Mode</th>
+                <th className="px-4 py-3.5">Sphere</th>
+                <th className="px-4 py-3.5 text-right">Amount (₹)</th>
+                <th className="px-4 py-3.5 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredEntries.length === 0 ? (
+            <tbody className="divide-y divide-slate-100">
+              {filtered.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-5 py-12 text-center text-slate-500"
+                    className="px-4 py-10 text-center text-xs text-slate-500"
                   >
-                    No matching transactions found. Click &quot;+ Cash In&quot;
-                    or &quot;- Add Expense&quot; to log an entry.
+                    No transactions match your current filter. Click &ldquo;Record Cash In&rdquo; or &ldquo;Record Expense&rdquo; above.
                   </td>
                 </tr>
               ) : (
-                filteredEntries.map((entry) => {
-                  const isInflow = entry.entry_type === 'cash_in';
-                  const isTransfer = entry.entry_type === 'transfer';
-                  const acc = accounts.find((a) => a.id === entry.account_id);
+                filtered.map((tx) => {
+                  const isIn = tx.entry_type === 'cash_in';
+                  const isTransfer = tx.entry_type === 'transfer';
+                  const linkedAcc = accounts.find(
+                    (a) => a.id === tx.account_id
+                  );
                   return (
                     <tr
-                      key={entry.id}
-                      className="transition-colors hover:bg-slate-50/80"
+                      key={tx.id}
+                      className="transition-colors hover:bg-slate-50/70"
                     >
-                      <td className="whitespace-nowrap px-5 py-3.5 font-mono text-xs tabular-nums text-slate-500">
-                        {entry.entry_date.slice(0, 10)}
+                      <td className="whitespace-nowrap px-4 py-3.5 font-mono text-xs text-slate-600">
+                        {new Date(tx.entry_date).toLocaleDateString('en-IN')}
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-4 py-3.5">
                         <p className="font-semibold text-slate-900">
-                          {entry.category}
+                          {tx.note}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {entry.note}
-                        </p>
+                        <p className="text-xs text-slate-500">{tx.category}</p>
                       </td>
-                      <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-600">
-                        {acc ? acc.name : 'Direct Ledger'} ·{' '}
-                        <span className="font-mono font-semibold uppercase">
-                          {entry.payment_mode}
+                      <td className="whitespace-nowrap px-4 py-3.5">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold uppercase text-slate-700">
+                          {tx.payment_mode}
                         </span>
+                        {linkedAcc && (
+                          <span className="ml-1.5 text-xs text-slate-500">
+                            · {linkedAcc.name}
+                          </span>
+                        )}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-500">
-                        {entry.scope}
+                      <td className="whitespace-nowrap px-4 py-3.5 text-xs capitalize text-slate-600">
+                        {tx.scope}
                       </td>
                       <td
-                        className={`whitespace-nowrap px-5 py-3.5 text-right font-mono font-bold tabular-nums ${
-                          isInflow
+                        className={`whitespace-nowrap px-4 py-3.5 text-right font-mono text-sm font-bold tabular-nums ${
+                          isIn
                             ? 'text-emerald-700'
                             : isTransfer
                               ? 'text-sky-700'
                               : 'text-rose-700'
                         }`}
                       >
-                        {isInflow ? '+' : isTransfer ? '⇄ ' : '-'}
-                        {formatINRFromPaise(entry.amount_paise)}
+                        {isIn ? '+' : isTransfer ? '' : '-'}
+                        {formatINRFromPaise(tx.amount_paise, {
+                          masked: privacyMasked,
+                        })}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-3.5 text-right">
+                      <td className="whitespace-nowrap px-4 py-3.5 text-right">
                         <button
                           type="button"
-                          onClick={() => deleteLedgerEntry(entry.id)}
-                          title="Delete & Reverse Account Impact"
-                          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                          onClick={() => deleteLedgerEntry(tx.id)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                          title="Delete Entry & Reverse Account Balance"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -333,25 +349,28 @@ export function IncomeExpenseModule() {
         </div>
       </div>
 
-      {/* Add Ledger Entry Modal */}
+      {/* Add Voucher Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {entryType === 'cash_in'
-                ? 'Record Cash In / Revenue'
+                ? 'Record Cash In / Income'
                 : 'Record Expense / Cash Out'}
             </DialogTitle>
             <DialogDescription>
-              Automatically updates the selected bank or cash drawer balance.
+              Automatically updates the selected bank or cash account balance.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddEntry} className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setEntryType('cash_in')}
-                className={`rounded-xl border py-2.5 text-xs font-bold transition-colors ${
+                onClick={() => {
+                  setEntryType('cash_in');
+                  setCategory('Sales & Revenue');
+                }}
+                className={`rounded-xl border py-2 text-xs font-bold ${
                   entryType === 'cash_in'
                     ? 'border-emerald-300 bg-[#ECFDF5] text-emerald-900'
                     : 'border-slate-200 bg-white text-slate-600'
@@ -361,43 +380,48 @@ export function IncomeExpenseModule() {
               </button>
               <button
                 type="button"
-                onClick={() => setEntryType('expense')}
-                className={`rounded-xl border py-2.5 text-xs font-bold transition-colors ${
-                  entryType !== 'cash_in'
+                onClick={() => {
+                  setEntryType('expense');
+                  setCategory('Operations & Supplies');
+                }}
+                className={`rounded-xl border py-2 text-xs font-bold ${
+                  entryType === 'expense'
                     ? 'border-rose-300 bg-[#FFF1F2] text-rose-900'
                     : 'border-slate-200 bg-white text-slate-600'
                 }`}
               >
-                - Expense / Outflow
+                - Expense (Outflow)
               </button>
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Amount (₹) *
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                required
-                placeholder="2500"
-                value={amountRupees}
-                onChange={(e) => setAmountRupees(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Amount (₹) *
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="2500"
+                  value={amountRupees}
+                  onChange={(e) => setAmountRupees(e.target.value)}
+                />
+              </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Category *
                 </label>
                 <Input
                   required
-                  placeholder="Wholesale Sales / Logistics"
+                  placeholder="e.g. Wholesale Sales, Logistics, Rent"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Payment Mode
@@ -410,14 +434,11 @@ export function IncomeExpenseModule() {
                   className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
                 >
                   <option value="upi">UPI</option>
-                  <option value="bank">Bank NEFT / RTGS</option>
+                  <option value="bank">Bank Transfer</option>
                   <option value="cash">Physical Cash</option>
                   <option value="card">Card</option>
                 </select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Linked Account
@@ -427,6 +448,9 @@ export function IncomeExpenseModule() {
                   onChange={(e) => setAccountId(e.target.value)}
                   className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
                 >
+                  {accounts.length === 0 && (
+                    <option value="">General Cashbook</option>
+                  )}
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -436,7 +460,7 @@ export function IncomeExpenseModule() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere Scope
+                  Sphere
                 </label>
                 <select
                   value={scope}
@@ -452,10 +476,10 @@ export function IncomeExpenseModule() {
 
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Narration / Voucher Note
+                Narration / Description
               </label>
               <Input
-                placeholder="Invoice # or counterparty details"
+                placeholder="Party name, bill number, or voucher details..."
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
@@ -469,7 +493,10 @@ export function IncomeExpenseModule() {
               >
                 Cancel
               </Button>
-              <Button type="submit">Post Ledger Entry</Button>
+              <Button type="submit">
+                <Plus className="mr-1.5 h-4 w-4" />
+                Save Voucher
+              </Button>
             </div>
           </form>
         </DialogContent>

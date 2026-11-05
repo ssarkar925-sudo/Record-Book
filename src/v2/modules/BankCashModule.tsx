@@ -3,18 +3,18 @@
 import React, { useState } from 'react';
 import {
   ArrowLeftRight,
-  Landmark,
+  Building2,
+  Check,
+  Copy,
   Pencil,
   Plus,
   Trash2,
   Wallet,
 } from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
-import {
-  formatINRFromPaise,
-  rupeesToPaise,
-} from '@/v2/engine/financialEngine';
-import { AnimatedCurrency } from '@/v2/components/AnimatedCurrency';
+import { useV2Store } from '../store/useV2Store';
+import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
+import { AnimatedCurrency } from '../components/AnimatedCurrency';
+import { AccountType, SphereScope, V2Account } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -24,21 +24,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { AccountType, SphereScope, V2Account } from '@/types/v2';
 
 export function BankCashModule() {
   const {
     accounts,
     scopeFilter,
+    privacyMasked,
     addAccount,
     updateAccount,
     deleteAccount,
     transferBetweenAccounts,
+    logSecurityEvent,
   } = useV2Store();
 
   const [addOpen, setAddOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<V2Account | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Add Account Form State
   const [name, setName] = useState('');
@@ -46,60 +48,70 @@ export function BankCashModule() {
   const [accountType, setAccountType] = useState<AccountType>('savings');
   const [last4, setLast4] = useState('');
   const [ifsc, setIfsc] = useState('');
-  const [openingRupees, setOpeningRupees] = useState('');
+  const [balanceRupees, setBalanceRupees] = useState('');
   const [scope, setScope] = useState<SphereScope>('business');
   const [notes, setNotes] = useState('');
 
-  // Edit Account Form State
+  // Edit / Reconcile Account State
   const [editName, setEditName] = useState('');
   const [editBankName, setEditBankName] = useState('');
   const [editBalanceRupees, setEditBalanceRupees] = useState('');
   const [editIfsc, setEditIfsc] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
-  // Transfer Form State
+  // Transfer State
   const [fromId, setFromId] = useState(accounts[0]?.id || '');
-  const [toId, setToId] = useState(accounts[1]?.id || accounts[0]?.id || '');
+  const [toId, setToId] = useState(accounts[1]?.id || '');
   const [transferRupees, setTransferRupees] = useState('');
   const [transferNote, setTransferNote] = useState('');
 
-  const visibleAccounts = accounts.filter(
-    (a) => scopeFilter === 'all' || a.scope === scopeFilter
+  const visibleAccounts = accounts.filter((a) =>
+    scopeFilter === 'all' ? true : a.scope === scopeFilter
   );
 
   const totalLiquidPaise = visibleAccounts.reduce(
     (sum, a) => sum + a.balance_paise,
     0
   );
+  const bankOnlyPaise = visibleAccounts
+    .filter((a) => a.account_type !== 'cash')
+    .reduce((sum, a) => sum + a.balance_paise, 0);
+  const cashOnlyPaise = visibleAccounts
+    .filter((a) => a.account_type === 'cash')
+    .reduce((sum, a) => sum + a.balance_paise, 0);
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     await addAccount({
       name: name.trim(),
-      bank_name: bankName.trim() || 'Bank / Cash',
+      bank_name:
+        bankName.trim() ||
+        (accountType === 'cash' ? 'Physical Cash' : 'Bank Account'),
       account_type: accountType,
-      account_number_last4: last4.trim() || '0000',
+      account_number_last4:
+        last4.trim() || (accountType === 'cash' ? 'CASH' : '0000'),
       ifsc: ifsc.trim().toUpperCase(),
-      balance_paise: rupeesToPaise(openingRupees || '0'),
+      balance_paise: rupeesToPaise(balanceRupees || '0'),
       is_default: accounts.length === 0,
       scope,
       notes: notes.trim(),
     });
+    logSecurityEvent('Account Added', `Created account ${name.trim()}`);
     setName('');
     setBankName('');
     setLast4('');
     setIfsc('');
-    setOpeningRupees('');
+    setBalanceRupees('');
     setNotes('');
     setAddOpen(false);
   };
 
-  const handleOpenEdit = (acc: V2Account) => {
+  const openEditModal = (acc: V2Account) => {
     setEditTarget(acc);
     setEditName(acc.name);
     setEditBankName(acc.bank_name || '');
-    setEditBalanceRupees((acc.balance_paise / 100).toString());
+    setEditBalanceRupees(String(acc.balance_paise / 100));
     setEditIfsc(acc.ifsc || '');
     setEditNotes(acc.notes || '');
   };
@@ -107,132 +119,187 @@ export function BankCashModule() {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTarget || !editName.trim()) return;
+    const nextPaise = rupeesToPaise(editBalanceRupees || '0');
     await updateAccount(editTarget.id, {
       name: editName.trim(),
-      bank_name: editBankName.trim() || 'Bank / Cash',
-      balance_paise: rupeesToPaise(editBalanceRupees || '0'),
+      bank_name: editBankName.trim(),
+      balance_paise: nextPaise,
       ifsc: editIfsc.trim().toUpperCase(),
       notes: editNotes.trim(),
     });
+    logSecurityEvent(
+      'Account Balance Reconciled',
+      `Updated ${editName.trim()} balance`
+    );
     setEditTarget(null);
   };
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    const paise = rupeesToPaise(transferRupees);
-    if (!fromId || !toId || fromId === toId || paise <= 0) return;
+    const amountPaise = rupeesToPaise(transferRupees);
+    if (!fromId || !toId || fromId === toId || amountPaise <= 0) return;
     await transferBetweenAccounts({
       fromAccountId: fromId,
       toAccountId: toId,
-      amountPaise: paise,
+      amountPaise,
       note: transferNote.trim(),
-      scope: 'business',
+      scope: scopeFilter === 'all' ? 'business' : scopeFilter,
     });
+    logSecurityEvent(
+      'Contra Transfer Completed',
+      `Transferred ₹${transferRupees} between accounts`
+    );
     setTransferRupees('');
     setTransferNote('');
     setTransferOpen(false);
   };
 
+  const handleCopyIfsc = (id: string, code: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(code);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Pastel Mint Header */}
-      <div className="rounded-2xl border border-emerald-200 bg-[#ECFDF5] p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold text-emerald-800">
-              02. Liquid Treasury & Cash Drawer
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Bank Accounts & Cash Float
-            </h1>
-            <p className="mt-1 text-sm text-emerald-900">
-              Combined Cleared Liquidity:{' '}
-              <AnimatedCurrency
-                valuePaise={totalLiquidPaise}
-                className="font-mono font-bold tabular-nums text-emerald-950"
-              />
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              variant="outline"
-              disabled={accounts.length < 2}
-              onClick={() => {
-                setFromId(accounts[0]?.id || '');
-                setToId(accounts[1]?.id || accounts[0]?.id || '');
-                setTransferOpen(true);
-              }}
-              className="gap-2 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50 whitespace-nowrap"
-            >
-              <ArrowLeftRight className="h-4 w-4" />
-              <span>Self Transfer (Contra)</span>
-            </Button>
-            <Button
-              variant="default"
-              onClick={() => setAddOpen(true)}
-              className="gap-2 bg-emerald-700 hover:bg-emerald-800 whitespace-nowrap"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Account</span>
-            </Button>
-          </div>
+      {/* Executive Header */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs sm:flex-row sm:items-center">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-[#ECFDF5] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+            Treasury & Liquidity
+          </span>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900">
+            Bank & Cash Accounts
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Manage savings accounts, business current accounts, physical cash drawers (Galla), and self-transfers.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setFromId(accounts[0]?.id || '');
+              setToId(accounts[1]?.id || accounts[0]?.id || '');
+              setTransferOpen(true);
+            }}
+            disabled={accounts.length < 2}
+          >
+            <ArrowLeftRight className="mr-1.5 h-4 w-4 text-indigo-600" />
+            Self / Contra Transfer
+          </Button>
+          <Button variant="emerald" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add Bank or Cash Account
+          </Button>
         </div>
       </div>
 
-      {/* Accounts Grid (Single-Elevation Cards with Hairline Dividers) */}
-      {visibleAccounts.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-          <Landmark className="mx-auto h-9 w-9 text-emerald-600" />
-          <h3 className="mt-3 text-base font-bold text-slate-900">
-            No bank or cash accounts in this sphere yet
-          </h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Add your primary business current account, personal savings account,
-            or physical cash drawer (Galla).
+      {/* 3-Column Liquidity Summary Strip */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] to-white p-5 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+            Combined Liquid Treasury
           </p>
-          <div className="mt-4 flex justify-center">
-            <Button
-              onClick={() => setAddOpen(true)}
-              className="gap-2 bg-emerald-700 hover:bg-emerald-800"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add First Account</span>
-            </Button>
+          <div className="mt-2">
+            <AnimatedCurrency
+              paise={totalLiquidPaise}
+              className="text-2xl font-extrabold text-slate-900 sm:text-3xl"
+            />
           </div>
+          <p className="mt-1 text-[11px] text-emerald-900/80">
+            Across {visibleAccounts.length} active accounts
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-5 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+            Total in Bank Accounts
+          </p>
+          <div className="mt-2">
+            <AnimatedCurrency
+              paise={bankOnlyPaise}
+              className="text-2xl font-extrabold text-slate-900 sm:text-3xl"
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-indigo-900/80">
+            Savings, Current, OD & Digital Wallets
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-[#FFFBEB] to-white p-5 shadow-2xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-amber-900">
+            Physical Cash in Hand (Galla)
+          </p>
+          <div className="mt-2">
+            <AnimatedCurrency
+              paise={cashOnlyPaise}
+              className="text-2xl font-extrabold text-slate-900 sm:text-3xl"
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-amber-900/80">
+            Store counter & petty cash drawers
+          </p>
+        </div>
+      </div>
+
+      {/* Account Cards Grid */}
+      {visibleAccounts.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <Building2 className="mx-auto h-8 w-8 text-emerald-600" />
+          <h2 className="mt-3 text-base font-bold text-slate-900">
+            No bank or cash accounts in this view
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Add your primary business current account, personal savings account, or physical cash drawer to track real-time balances.
+          </p>
+          <Button
+            variant="emerald"
+            size="sm"
+            className="mt-4"
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add First Account
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibleAccounts.map((acc) => {
             const isCash = acc.account_type === 'cash';
+            const cardTone = isCash
+              ? 'border-amber-200 bg-gradient-to-br from-[#FFFBEB]/90 to-white'
+              : acc.account_type === 'current'
+                ? 'border-indigo-200 bg-gradient-to-br from-[#EEF2FF]/90 to-white'
+                : 'border-emerald-200 bg-gradient-to-br from-[#ECFDF5]/90 to-white';
+
             return (
               <div
                 key={acc.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 transition-colors hover:border-emerald-300"
+                className={`flex flex-col justify-between rounded-2xl border p-5 shadow-2xs transition-all hover:shadow-sm ${cardTone}`}
               >
                 <div>
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
-                          isCash
-                            ? 'border-amber-200 bg-[#FFFBEB] text-amber-700'
-                            : 'border-emerald-200 bg-[#ECFDF5] text-emerald-700'
-                        }`}
-                      >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-800 shadow-2xs">
                         {isCash ? (
-                          <Wallet className="h-5 w-5" />
+                          <Wallet className="h-5 w-5 text-amber-600" />
                         ) : (
-                          <Landmark className="h-5 w-5" />
+                          <Building2 className="h-5 w-5 text-indigo-600" />
                         )}
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-slate-900">
                           {acc.name}
                         </h3>
-                        <p className="text-xs text-slate-500">
-                          {acc.bank_name || 'Account'} · ••
-                          {acc.account_number_last4 || 'CASH'} ·{' '}
-                          {acc.account_type.toUpperCase()} · {acc.scope}
+                        <p className="text-xs text-slate-600">
+                          {acc.bank_name || 'Account'} ·{' '}
+                          <span className="font-mono">
+                            ••{acc.account_number_last4 || '0000'}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -240,40 +307,69 @@ export function BankCashModule() {
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => handleOpenEdit(acc)}
-                        title="Edit Account / Adjust Balance"
-                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                        onClick={() => openEditModal(acc)}
+                        className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white hover:text-indigo-700"
+                        title="Edit or Reconcile Account Balance"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteAccount(acc.id)}
-                        title="Delete Account"
                         className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                        title="Delete Account"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
 
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <p className="text-xs font-medium text-slate-500">
-                      Cleared Balance
+                  <div className="mt-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Available Balance
                     </p>
-                    <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-slate-900">
-                      {formatINRFromPaise(acc.balance_paise)}
+                    <p className="mt-1 font-mono text-2xl font-extrabold tabular-nums text-slate-900">
+                      {formatINRFromPaise(acc.balance_paise, {
+                        showDecimals: true,
+                        masked: privacyMasked,
+                      })}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-                  <span className="font-mono">
-                    {acc.ifsc ? `IFSC: ${acc.ifsc}` : 'Direct Cash Register'}
-                  </span>
-                  <span className="truncate pl-2">
-                    {acc.notes || 'Active Ledger Account'}
-                  </span>
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-3 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold uppercase text-slate-700">
+                      {acc.account_type}
+                    </span>
+                    <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium capitalize text-slate-600">
+                      {acc.scope}
+                    </span>
+                  </div>
+
+                  {acc.ifsc ? (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyIfsc(acc.id, acc.ifsc!)}
+                      className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-indigo-800 hover:bg-indigo-50"
+                      title="Copy IFSC Code"
+                    >
+                      <span>{acc.ifsc}</span>
+                      {copiedId === acc.id ? (
+                        <Check className="h-3 w-3 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-3 w-3 text-indigo-500" />
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(acc)}
+                      className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                    >
+                      Reconcile Balance
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -287,23 +383,35 @@ export function BankCashModule() {
           <DialogHeader>
             <DialogTitle>Add Bank or Cash Account</DialogTitle>
             <DialogDescription>
-              Create a new bank account, UPI wallet, OD/CC limit, or physical
-              cash drawer.
+              Create a new bank account, digital wallet, or physical cash register.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateAccount} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Account Display Name *
-              </label>
-              <Input
-                required
-                placeholder="e.g., ICICI Business Current or Counter Cash"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Account Display Name *
+                </label>
+                <Input
+                  required
+                  placeholder="e.g. HDFC Business Current"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Bank / Institution Name
+                </label>
+                <Input
+                  placeholder="e.g. HDFC Bank / Cash Drawer"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Account Type
@@ -315,12 +423,49 @@ export function BankCashModule() {
                   }
                   className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
                 >
-                  <option value="savings">Savings Account</option>
-                  <option value="current">Current Account</option>
+                  <option value="savings">Savings Bank</option>
+                  <option value="current">Current / Business</option>
                   <option value="cash">Physical Cash (Galla)</option>
-                  <option value="upi">UPI Lite / Wallet</option>
-                  <option value="od_cc">Overdraft / CC</option>
+                  <option value="od">Overdraft / CC</option>
+                  <option value="wallet">UPI / Wallet</option>
                 </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Last 4 Digits
+                </label>
+                <Input
+                  maxLength={4}
+                  placeholder="4821"
+                  value={last4}
+                  onChange={(e) => setLast4(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  IFSC Code (Optional)
+                </label>
+                <Input
+                  placeholder="HDFC0001204"
+                  value={ifsc}
+                  onChange={(e) => setIfsc(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Opening Balance (₹) *
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="25000"
+                  value={balanceRupees}
+                  onChange={(e) => setBalanceRupees(e.target.value)}
+                />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
@@ -337,62 +482,18 @@ export function BankCashModule() {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Bank Name
-                </label>
-                <Input
-                  placeholder="HDFC / SBI"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Last 4 Digits
-                </label>
-                <Input
-                  maxLength={4}
-                  placeholder="4829"
-                  value={last4}
-                  onChange={(e) => setLast4(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  IFSC Code
-                </label>
-                <Input
-                  placeholder="HDFC0001204"
-                  value={ifsc}
-                  onChange={(e) => setIfsc(e.target.value)}
-                />
-              </div>
-            </div>
+
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Opening Balance (₹) *
+                Notes
               </label>
               <Input
-                type="number"
-                step="0.01"
-                required
-                placeholder="50000"
-                value={openingRupees}
-                onChange={(e) => setOpeningRupees(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Notes / Purpose
-              </label>
-              <Input
-                placeholder="Primary settlement account"
+                placeholder="Primary settlement account, branch note..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
@@ -401,26 +502,28 @@ export function BankCashModule() {
               >
                 Cancel
               </Button>
-              <Button type="submit">Save Account</Button>
+              <Button type="submit" variant="emerald">
+                Save Account
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Account / Adjust Balance Dialog */}
+      {/* Reconcile / Edit Account Modal */}
       <Dialog
         open={Boolean(editTarget)}
         onOpenChange={(o) => !o && setEditTarget(null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Account · {editTarget?.name}</DialogTitle>
+            <DialogTitle>Edit & Reconcile Account</DialogTitle>
             <DialogDescription>
-              Update account details or reconcile the current cleared ₹ balance.
+              Update account details or reconcile the current balance with your actual bank statement.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Account Name *
@@ -441,10 +544,10 @@ export function BankCashModule() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Cleared Balance (₹) *
+                  Current Statement Balance (₹) *
                 </label>
                 <Input
                   type="number"
@@ -487,18 +590,17 @@ export function BankCashModule() {
         </DialogContent>
       </Dialog>
 
-      {/* Self Transfer Dialog */}
+      {/* Self / Contra Transfer Dialog */}
       <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Atomic Self-Transfer (Contra Entry)</DialogTitle>
+            <DialogTitle>Self / Contra Account Transfer</DialogTitle>
             <DialogDescription>
-              Move funds between bank accounts and cash drawer with automatic
-              double-entry balance updates.
+              Move funds between bank accounts and physical cash drawers without inflating revenue or expense totals.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleTransfer} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   From Account (Debit)
@@ -510,7 +612,11 @@ export function BankCashModule() {
                 >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name} ({formatINRFromPaise(a.balance_paise)})
+                      {a.name} (
+                      {formatINRFromPaise(a.balance_paise, {
+                        masked: privacyMasked,
+                      })}
+                      )
                     </option>
                   ))}
                 </select>
@@ -526,12 +632,17 @@ export function BankCashModule() {
                 >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name} ({formatINRFromPaise(a.balance_paise)})
+                      {a.name} (
+                      {formatINRFromPaise(a.balance_paise, {
+                        masked: privacyMasked,
+                      })}
+                      )
                     </option>
                   ))}
                 </select>
               </div>
             </div>
+
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
                 Transfer Amount (₹) *
@@ -545,16 +656,18 @@ export function BankCashModule() {
                 onChange={(e) => setTransferRupees(e.target.value)}
               />
             </div>
+
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Reference / Narration
+                Transfer Remarks
               </label>
               <Input
-                placeholder="ATM Cash Withdrawal for Store Drawer"
+                placeholder="e.g. Cash withdrawal for store counter float"
                 value={transferNote}
                 onChange={(e) => setTransferNote(e.target.value)}
               />
             </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"

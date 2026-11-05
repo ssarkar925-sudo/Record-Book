@@ -1,28 +1,30 @@
 'use client';
 
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo } from 'react';
 import {
   ArrowDownLeft,
-  ArrowRight,
   ArrowUpRight,
   Building2,
-  Cloud,
   CreditCard,
-  Database,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
   HandCoins,
-  RotateCcw,
+  Lock,
+  Plus,
+  ShieldCheck,
+  Sparkles,
   StickyNote,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
+import { useV2Store } from '../store/useV2Store';
 import {
   computeOverviewMetrics,
   formatINRFromPaise,
-} from '@/v2/engine/financialEngine';
-import { AnimatedCurrency } from '@/v2/components/AnimatedCurrency';
+} from '../engine/financialEngine';
+import { AnimatedCurrency } from '../components/AnimatedCurrency';
 import { Button } from '@/components/ui/button';
-import { ModuleId } from '@/types/v2';
 
 interface OverviewModuleProps {
   onOpenQuickEntry: (defaultType?: 'cash_in' | 'expense') => void;
@@ -36,555 +38,665 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
     cards,
     notes,
     sheets,
+    vaultItems,
     scopeFilter,
-    userEmail,
+    searchQuery,
+    privacyMasked,
+    appPinHash,
+    togglePrivacyMask,
     setActiveModule,
     loadSampleWorkspaceData,
-    clearAllWorkspaceData,
   } = useV2Store();
 
-  const metrics = computeOverviewMetrics({
-    accounts,
-    entries,
-    dues,
-    cards,
-    scope: scopeFilter,
-  });
-
-  const filteredEntries = entries
-    .filter((e) => scopeFilter === 'all' || e.scope === scopeFilter)
-    .slice(0, 7);
-
-  const activeNotes = notes.filter(
-    (n) =>
-      !n.is_trashed &&
-      !n.is_archived &&
-      (scopeFilter === 'all' || n.scope === scopeFilter)
+  const metrics = useMemo(
+    () =>
+      computeOverviewMetrics({
+        accounts,
+        entries,
+        dues,
+        cards,
+        scope: scopeFilter,
+      }),
+    [accounts, entries, dues, cards, scopeFilter]
   );
 
-  const pendingDues = dues.filter(
-    (d) =>
-      d.status !== 'settled' &&
-      (scopeFilter === 'all' || d.scope === scopeFilter)
-  );
+  const filteredEntries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return entries
+      .filter((e) => (scopeFilter === 'all' ? true : e.scope === scopeFilter))
+      .filter((e) =>
+        !q
+          ? true
+          : e.note.toLowerCase().includes(q) ||
+            e.category.toLowerCase().includes(q)
+      )
+      .slice(0, 7);
+  }, [entries, scopeFilter, searchQuery]);
 
-  const utilizationPct =
-    metrics.cardLimitPaise > 0
-      ? Math.round((metrics.cardUtilizedPaise / metrics.cardLimitPaise) * 100)
-      : 0;
+  // Top spending categories breakdown
+  const categoryBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    let totalOut = 0;
+    for (const e of entries) {
+      if (scopeFilter !== 'all' && e.scope !== scopeFilter) continue;
+      if (e.entry_type === 'cash_in' || e.entry_type === 'transfer') continue;
+      const prev = map.get(e.category) || 0;
+      map.set(e.category, prev + e.amount_paise);
+      totalOut += e.amount_paise;
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([category, amountPaise]) => ({
+        category,
+        amountPaise,
+        sharePct: totalOut > 0 ? Math.round((amountPaise / totalOut) * 100) : 0,
+      }));
+  }, [entries, scopeFilter]);
 
-  const totalFlowPaise = metrics.totalIncomePaise + metrics.totalExpensePaise;
-  const inflowSharePct =
-    totalFlowPaise > 0
-      ? Math.round((metrics.totalIncomePaise / totalFlowPaise) * 100)
-      : 50;
-  const netCashflowPaise = metrics.totalIncomePaise - metrics.totalExpensePaise;
+  const pendingDuesList = useMemo(() => {
+    return dues
+      .filter((d) => (scopeFilter === 'all' ? true : d.scope === scopeFilter))
+      .filter((d) => d.status !== 'settled')
+      .slice(0, 4);
+  }, [dues, scopeFilter]);
 
   const isWorkspaceEmpty =
     accounts.length === 0 &&
     entries.length === 0 &&
     dues.length === 0 &&
-    cards.length === 0 &&
-    notes.length === 0;
+    cards.length === 0;
+
+  const netSurplusPaise = metrics.totalIncomePaise - metrics.totalExpensePaise;
+  const totalCardLimitPaise = cards.reduce(
+    (s, c) => s + c.credit_limit_paise,
+    0
+  );
+  const cardUtilizationPct =
+    totalCardLimitPaise > 0
+      ? Math.round((metrics.cardUtilizedPaise / totalCardLimitPaise) * 100)
+      : 0;
 
   return (
     <div className="space-y-6">
-      {/* Executive Daylight Header */}
-      <div className="rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-[#EEF2FF] via-[#F8FAFC] to-[#ECFDF5] p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium text-indigo-800">
-              <span>Daylight Wealth Ledger</span>
-              <span aria-hidden="true">·</span>
-              <span>
-                Scope:{' '}
-                {scopeFilter === 'all'
-                  ? 'All Spheres'
-                  : scopeFilter.charAt(0).toUpperCase() + scopeFilter.slice(1)}
-              </span>
-              {userEmail && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="font-mono text-emerald-800">{userEmail}</span>
-                </>
-              )}
-            </div>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-              Executive Financial Position
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Integer-paise precision across Bank & Cash accounts, double-entry
-              cashbook, customer receivables, credit lines, and auto-calculated ₹
-              notes.
-            </p>
+      {/* Executive Welcome & Command Header */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs sm:flex-row sm:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-[#EEF2FF] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-800">
+              <TrendingUp className="h-3.5 w-3.5 text-indigo-700" />
+              Financial Command Center
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-[#ECFDF5] px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+              {appPinHash ? 'PIN Protected' : '256-Bit Vault Ready'}
+            </span>
           </div>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
+            Executive Portfolio & Treasury
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Real-time liquidity across your bank accounts, cash registers, customer receivables, and credit lines.
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap shrink-0">
-            <Button
-              variant="emerald"
-              size="sm"
-              onClick={() => onOpenQuickEntry('cash_in')}
-              className="gap-1.5 whitespace-nowrap"
-            >
-              <ArrowDownLeft className="h-4 w-4" />
-              <span>Record Cash In</span>
-            </Button>
-            <Button
-              variant="rose"
-              size="sm"
-              onClick={() => onOpenQuickEntry('expense')}
-              className="gap-1.5 whitespace-nowrap"
-            >
-              <ArrowUpRight className="h-4 w-4" />
-              <span>Record Expense</span>
-            </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {isWorkspaceEmpty && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setActiveModule('notes')}
-              className="gap-1.5 bg-white whitespace-nowrap"
+              onClick={() => void loadSampleWorkspaceData()}
+              className="border-indigo-200 bg-[#EEF2FF]/70 text-indigo-900 hover:bg-indigo-100"
             >
-              <StickyNote className="h-4 w-4 text-amber-600" />
-              <span>₹ Notes ({activeNotes.length})</span>
+              <Sparkles className="mr-1.5 h-3.5 w-3.5 text-indigo-700" />
+              Load Sample Business Data
             </Button>
-          </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={togglePrivacyMask}
+            className="border-slate-200 bg-white text-slate-700"
+          >
+            {privacyMasked ? (
+              <>
+                <EyeOff className="mr-1.5 h-3.5 w-3.5 text-amber-600" />
+                Unmask Figures
+              </>
+            ) : (
+              <>
+                <Eye className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
+                Mask Figures
+              </>
+            )}
+          </Button>
+          <Button
+            variant="emerald"
+            size="sm"
+            onClick={() => onOpenQuickEntry('cash_in')}
+          >
+            <ArrowDownLeft className="mr-1 h-4 w-4" />
+            Cash In
+          </Button>
+          <Button
+            variant="rose"
+            size="sm"
+            onClick={() => onOpenQuickEntry('expense')}
+          >
+            <ArrowUpRight className="mr-1 h-4 w-4" />
+            Expense
+          </Button>
         </div>
       </div>
 
-      {/* Production Data Onboarding / Workspace Data Controls */}
-      {isWorkspaceEmpty ? (
-        <div className="rounded-2xl border border-emerald-200 bg-[#ECFDF5]/75 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Clean Production Workspace Ready (₹0.00)
-              </h2>
-              <p className="mt-1 text-xs text-slate-600">
-                Start adding your real bank accounts and transactions, sign in to
-                your Supabase V2 cloud workspace, or load a sample dataset to
-                explore all 9 modules.
-              </p>
+      {/* 4 Primary Daylight Pastel KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Card 1: Total Net Worth (Soft Indigo Pastel) */}
+        <div className="flex flex-col justify-between rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] via-[#EEF2FF]/70 to-white p-5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+              Total Net Worth
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-200 bg-white text-indigo-700 shadow-2xs">
+              <Wallet className="h-4 w-4" />
             </div>
-            <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap shrink-0">
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setActiveModule('bank')}
-                className="gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800 whitespace-nowrap"
-              >
-                <Building2 className="h-3.5 w-3.5" />
-                <span>Add Bank / Cash Account</span>
-              </Button>
+          </div>
+          <div className="my-3">
+            <AnimatedCurrency
+              paise={metrics.netWorthPaise}
+              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
+            />
+          </div>
+          <div className="flex items-center justify-between border-t border-indigo-200/60 pt-2.5 text-[11px] font-medium text-indigo-950/80">
+            <span>Cash + Receivables − Liabilities</span>
+            <span className="font-semibold capitalize">{scopeFilter}</span>
+          </div>
+        </div>
+
+        {/* Card 2: Liquid Bank & Cash (Mint Emerald Pastel) */}
+        <button
+          type="button"
+          onClick={() => setActiveModule('bank')}
+          className="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] via-[#ECFDF5]/70 to-white p-5 text-left shadow-2xs transition-all hover:border-emerald-300 hover:shadow-sm"
+        >
+          <div className="flex w-full items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+              Bank & Cash Balance
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 shadow-2xs">
+              <Building2 className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="my-3">
+            <AnimatedCurrency
+              paise={metrics.liquidCashPaise}
+              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
+            />
+          </div>
+          <div className="flex w-full items-center justify-between gap-2 border-t border-emerald-200/60 pt-2.5 text-[11px] font-medium text-emerald-950/80">
+            <span className="truncate">{accounts.length} active accounts</span>
+            <span className="shrink-0 whitespace-nowrap font-bold text-emerald-800">
+              Manage →
+            </span>
+          </div>
+        </button>
+
+        {/* Card 3: Customer Receivables / Udhar (Warm Amber Pastel) */}
+        <button
+          type="button"
+          onClick={() => setActiveModule('dues')}
+          className="flex flex-col justify-between rounded-2xl border border-amber-200 bg-gradient-to-br from-[#FFFBEB] via-[#FFFBEB]/70 to-white p-5 text-left shadow-2xs transition-all hover:border-amber-300 hover:shadow-sm"
+        >
+          <div className="flex w-full items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-900">
+              To Receive (Udhar)
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-700 shadow-2xs">
+              <HandCoins className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="my-3">
+            <AnimatedCurrency
+              paise={metrics.totalReceivablePaise}
+              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
+            />
+          </div>
+          <div className="flex w-full items-center justify-between gap-2 border-t border-amber-200/60 pt-2.5 text-[11px] font-medium text-amber-950/80">
+            <span className="truncate">Pending customer collections</span>
+            <span className="shrink-0 whitespace-nowrap font-bold text-amber-900">
+              Collect →
+            </span>
+          </div>
+        </button>
+
+        {/* Card 4: Payables & Credit Card Dues (Blush Coral Pastel) */}
+        <button
+          type="button"
+          onClick={() => setActiveModule('cards')}
+          className="flex flex-col justify-between rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] via-[#FFF1F2]/70 to-white p-5 text-left shadow-2xs transition-all hover:border-rose-300 hover:shadow-sm"
+        >
+          <div className="flex w-full items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-900">
+              Payables & Card Dues
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-white text-rose-700 shadow-2xs">
+              <CreditCard className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="my-3">
+            <AnimatedCurrency
+              paise={metrics.totalPayablePaise + metrics.cardUtilizedPaise}
+              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
+            />
+          </div>
+          <div className="flex w-full items-center justify-between gap-2 border-t border-rose-200/60 pt-2.5 text-[11px] font-medium text-rose-950/80">
+            <span className="truncate">
+              Cards:{' '}
+              {formatINRFromPaise(metrics.cardUtilizedPaise, {
+                masked: privacyMasked,
+              })}{' '}
+              · Bills:{' '}
+              {formatINRFromPaise(metrics.totalPayablePaise, {
+                masked: privacyMasked,
+              })}
+            </span>
+            <span className="shrink-0 whitespace-nowrap font-bold text-rose-800">
+              Inspect →
+            </span>
+          </div>
+        </button>
+      </div>
+
+      {/* Executive Cashflow Velocity & Health Bar */}
+      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs md:grid-cols-3">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-[#ECFDF5]/60 p-3.5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-900">
+              Total Cash Inflow
+            </p>
+            <p className="mt-1 font-mono text-lg font-extrabold text-emerald-950">
+              {formatINRFromPaise(metrics.totalIncomePaise, {
+                showSign: true,
+                masked: privacyMasked,
+              })}
+            </p>
+          </div>
+          <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs">
+            Revenue
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-rose-200/80 bg-[#FFF1F2]/60 p-3.5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-rose-900">
+              Total Outflow & Spend
+            </p>
+            <p className="mt-1 font-mono text-lg font-extrabold text-rose-950">
+              {formatINRFromPaise(metrics.totalExpensePaise, {
+                masked: privacyMasked,
+              })}
+            </p>
+          </div>
+          <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-rose-800 shadow-2xs">
+            Outflow
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-sky-200/80 bg-[#EFF6FF]/60 p-3.5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-sky-900">
+              Net Operating Surplus
+            </p>
+            <p
+              className={`mt-1 font-mono text-lg font-extrabold ${
+                netSurplusPaise >= 0 ? 'text-emerald-800' : 'text-rose-800'
+              }`}
+            >
+              {formatINRFromPaise(netSurplusPaise, {
+                showSign: true,
+                masked: privacyMasked,
+              })}
+            </p>
+          </div>
+          <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-sky-900 shadow-2xs">
+            Card Use: {cardUtilizationPct}%
+          </span>
+        </div>
+      </div>
+
+      {/* Main 2-Column Workspace Grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left 7 Columns: Recent Cashbook Activity + Top Expense Categories */}
+        <div className="space-y-6 lg:col-span-7">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Recent Cashbook Transactions
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Latest income, expenses, card spends, and bank transfers
+                </p>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void loadSampleWorkspaceData()}
-                className="gap-1.5 border-indigo-200 bg-white text-indigo-900 hover:bg-indigo-50 whitespace-nowrap"
+                onClick={() => setActiveModule('expenses')}
               >
-                <Database className="h-3.5 w-3.5 text-indigo-600" />
-                <span>Load Sample Data</span>
+                Full Cashbook →
               </Button>
-              {!userEmail && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveModule('reports')}
-                  className="gap-1.5 bg-white text-slate-800 whitespace-nowrap"
-                >
-                  <Cloud className="h-3.5 w-3.5 text-sky-600" />
-                  <span>Cloud Sign In</span>
-                </Button>
-              )}
             </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5">
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-            <span className="font-semibold text-slate-900">
-              Active Workspace Data
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono tabular-nums">
-              {accounts.length} Accounts
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono tabular-nums">
-              {entries.length} Vouchers
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono tabular-nums">
-              {pendingDues.length} Open Dues
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono tabular-nums">{cards.length} Cards</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void clearAllWorkspaceData()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 whitespace-nowrap"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Reset Workspace to ₹0</span>
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* 4 Single-Elevation Pastel KPI Cards (24px padding, tabular-nums) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-indigo-200 bg-[#EEF2FF]/75 p-6"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-indigo-950">
-              01. Net Worth Position
-            </span>
-            <TrendingUp className="h-4 w-4 text-indigo-600" />
-          </div>
-          <div className="mt-3 font-mono text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">
-            <AnimatedCurrency valuePaise={metrics.netWorthPaise} />
-          </div>
-          <p className="mt-2 text-xs text-slate-600">
-            Liquid Treasury + Receivables − Payables & Card Dues
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.04 }}
-          onClick={() => setActiveModule('bank')}
-          className="cursor-pointer rounded-2xl border border-emerald-200 bg-[#ECFDF5]/85 p-6 transition-colors hover:border-emerald-300"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-950">
-              02. Liquid Bank & Cash
-            </span>
-            <Building2 className="h-4 w-4 text-emerald-700" />
-          </div>
-          <div className="mt-3 font-mono text-2xl font-bold tabular-nums text-emerald-950 sm:text-3xl">
-            <AnimatedCurrency valuePaise={metrics.liquidCashPaise} />
-          </div>
-          <p className="mt-2 text-xs text-emerald-800">
-            Across {accounts.length} active accounts · Open Treasury →
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
-          onClick={() => setActiveModule('dues')}
-          className="cursor-pointer rounded-2xl border border-amber-200 bg-[#FFFBEB]/90 p-6 transition-colors hover:border-amber-300"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-950">
-              03. Receivables (You Get)
-            </span>
-            <HandCoins className="h-4 w-4 text-amber-700" />
-          </div>
-          <div className="mt-3 font-mono text-2xl font-bold tabular-nums text-amber-950 sm:text-3xl">
-            <AnimatedCurrency valuePaise={metrics.totalReceivablePaise} />
-          </div>
-          <p className="mt-2 font-mono text-xs tabular-nums text-amber-900">
-            Payables (You Give): {formatINRFromPaise(metrics.totalPayablePaise)}
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          onClick={() => setActiveModule('cards')}
-          className="cursor-pointer rounded-2xl border border-rose-200 bg-[#FFF1F2]/85 p-6 transition-colors hover:border-rose-300"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-950">
-              04. Credit Card Utilized
-            </span>
-            <CreditCard className="h-4 w-4 text-rose-700" />
-          </div>
-          <div className="mt-3 font-mono text-2xl font-bold tabular-nums text-rose-950 sm:text-3xl">
-            <AnimatedCurrency valuePaise={metrics.cardUtilizedPaise} />
-          </div>
-          <p className="mt-2 font-mono text-xs tabular-nums text-rose-900">
-            {utilizationPct}% of {formatINRFromPaise(metrics.cardLimitPaise)} limit
-          </p>
-        </motion.div>
-      </div>
-
-      {/* Cashflow Ratio & Liquidity Strip */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">
-              Period Cashflow Velocity & Net Operating Surplus
-            </h2>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span>
-                Gross Inflow:{' '}
-                <strong className="font-mono tabular-nums text-emerald-700">
-                  +{formatINRFromPaise(metrics.totalIncomePaise)}
-                </strong>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>
-                Gross Outflow:{' '}
-                <strong className="font-mono tabular-nums text-rose-700">
-                  -{formatINRFromPaise(metrics.totalExpensePaise)}
-                </strong>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>
-                Net Cashflow:{' '}
-                <strong
-                  className={`font-mono tabular-nums ${
-                    netCashflowPaise >= 0 ? 'text-emerald-700' : 'text-rose-700'
-                  }`}
-                >
-                  {netCashflowPaise >= 0 ? '+' : ''}
-                  {formatINRFromPaise(netCashflowPaise)}
-                </strong>
-              </span>
-            </div>
-          </div>
-          <span className="font-mono text-xs font-semibold tabular-nums text-slate-600">
-            Inflow Ratio: {inflowSharePct}%
-          </span>
-        </div>
-        <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="bg-emerald-600 transition-all duration-300"
-            style={{ width: `${inflowSharePct}%` }}
-          />
-          <div
-            className="bg-rose-500 transition-all duration-300"
-            style={{ width: `${100 - inflowSharePct}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Main Split Grid: Recent Transactions (Left 7 cols) + Active Notes & Module Directory (Right 5 cols) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Recent Double-Entry Ledger Stream */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-7">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Recent Ledger Journal
-              </h2>
-              <p className="text-xs text-slate-500">
-                Double-entry vouchers synchronized with bank & cash registers
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveModule('expenses')}
-              className="gap-1 text-indigo-600 whitespace-nowrap"
-            >
-              <span>Full Journal</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          <div className="mt-2 divide-y divide-slate-100">
             {filteredEntries.length === 0 ? (
-              <div className="py-10 text-center">
-                <p className="text-sm font-medium text-slate-600">
-                  No ledger entries recorded for this sphere yet.
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-8 text-center">
+                <p className="text-sm font-bold text-slate-800">
+                  No transactions recorded yet
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Record your first revenue inflow or expense voucher to populate
-                  the journal.
+                  Record your first income or expense, or load sample business records to explore the dashboard.
                 </p>
-                <div className="mt-4 flex items-center justify-center gap-2">
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <Button
                     size="sm"
-                    variant="emerald"
                     onClick={() => onOpenQuickEntry('cash_in')}
                   >
-                    + Log First Cash In
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Record First Entry
                   </Button>
                   <Button
-                    size="sm"
                     variant="outline"
+                    size="sm"
                     onClick={() => void loadSampleWorkspaceData()}
                   >
-                    Load Sample Dataset
+                    Load Sample Business Data
                   </Button>
                 </div>
               </div>
             ) : (
-              filteredEntries.map((entry) => {
-                const isInflow = entry.entry_type === 'cash_in';
-                const isTransfer = entry.entry_type === 'transfer';
-                const acc = accounts.find((a) => a.id === entry.account_id);
-                return (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between py-3.5 transition-colors hover:bg-slate-50/60"
-                  >
-                    <div className="min-w-0 pr-4">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {entry.category}
-                      </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                        <span className="truncate">{entry.note}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono">
-                          {entry.payment_mode.toUpperCase()}
-                        </span>
-                        {acc && (
-                          <>
-                            <span aria-hidden="true">·</span>
-                            <span>{acc.name}</span>
-                          </>
-                        )}
-                        <span aria-hidden="true">·</span>
-                        <span>{entry.scope}</span>
-                      </div>
-                    </div>
+              <div className="divide-y divide-slate-100">
+                {filteredEntries.map((tx) => {
+                  const isIn = tx.entry_type === 'cash_in';
+                  const isTransfer = tx.entry_type === 'transfer';
+                  return (
                     <div
-                      className={`shrink-0 font-mono text-sm font-bold tabular-nums ${
-                        isInflow
-                          ? 'text-emerald-700'
-                          : isTransfer
-                            ? 'text-sky-700'
-                            : 'text-rose-700'
-                      }`}
+                      key={tx.id}
+                      className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
                     >
-                      {isInflow ? '+' : isTransfer ? '⇄ ' : '-'}
-                      {formatINRFromPaise(entry.amount_paise)}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Live ₹ Checklist Notes + Suite Directory */}
-        <div className="space-y-6 lg:col-span-5">
-          <div className="rounded-2xl border border-amber-200 bg-[#FFFBEB]/65 p-6">
-            <div className="flex items-center justify-between border-b border-amber-200/60 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Daily ₹ Checklists & Notes
-                </h2>
-                <p className="text-xs text-slate-600">
-                  Auto-parsed ₹ amounts from active checklists
-                </p>
-              </div>
-              <Button
-                variant="amber"
-                size="sm"
-                onClick={() => setActiveModule('notes')}
-                className="whitespace-nowrap"
-              >
-                Open Notes
-              </Button>
-            </div>
-
-            <div className="mt-4 divide-y divide-amber-200/50">
-              {activeNotes.length === 0 ? (
-                <div className="py-6 text-center text-xs text-slate-600">
-                  No active ₹ checklists yet. Click &quot;Open Notes&quot; to
-                  create a live auto-summing note.
-                </div>
-              ) : (
-                activeNotes.slice(0, 3).map((note) => (
-                  <div
-                    key={note.id}
-                    onClick={() => setActiveModule('notes')}
-                    className="cursor-pointer py-3 first:pt-0 last:pb-0"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {note.title}
-                      </p>
-                      <span className="font-mono text-xs font-bold tabular-nums text-amber-900">
-                        {formatINRFromPaise(note.calculated_total_paise)}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-xs font-bold ${
+                            isIn
+                              ? 'border-emerald-200 bg-[#ECFDF5] text-emerald-700'
+                              : isTransfer
+                                ? 'border-sky-200 bg-[#EFF6FF] text-sky-700'
+                                : 'border-rose-200 bg-[#FFF1F2] text-rose-700'
+                          }`}
+                        >
+                          {isIn ? '+' : isTransfer ? '⇄' : '−'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {tx.note}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {tx.category} ·{' '}
+                            <span className="uppercase">{tx.payment_mode}</span>{' '}
+                            · {new Date(tx.entry_date).toLocaleDateString('en-IN')}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`ml-3 shrink-0 font-mono text-sm font-bold tabular-nums ${
+                          isIn
+                            ? 'text-emerald-700'
+                            : isTransfer
+                              ? 'text-sky-700'
+                              : 'text-rose-700'
+                        }`}
+                      >
+                        {isIn ? '+' : isTransfer ? '' : '-'}
+                        {formatINRFromPaise(tx.amount_paise, {
+                          masked: privacyMasked,
+                        })}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-600">
-                      {note.checklist_items.filter((i) => i.checked).length} of{' '}
-                      {note.checklist_items.length} tasks settled · {note.scope}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* 9-Module Quick Navigator */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="text-sm font-bold text-slate-900">
-              Workspace Modules
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Direct navigation across all financial registers
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2.5">
-              {(
-                [
-                  {
-                    id: 'bank',
-                    label: 'Bank & Cash',
-                    count: `${accounts.length} Acc`,
-                    bg: 'bg-[#ECFDF5] border-emerald-200 text-emerald-950 hover:border-emerald-300',
-                  },
-                  {
-                    id: 'dues',
-                    label: 'Dues & Udhar',
-                    count: `${pendingDues.length} Open`,
-                    bg: 'bg-[#FFFBEB] border-amber-200 text-amber-950 hover:border-amber-300',
-                  },
-                  {
-                    id: 'cards',
-                    label: 'Credit Cards',
-                    count: `${cards.length} Cards`,
-                    bg: 'bg-[#FFF1F2] border-rose-200 text-rose-950 hover:border-rose-300',
-                  },
-                  {
-                    id: 'sheets',
-                    label: 'Custom Sheets',
-                    count: `${sheets.length} Sheets`,
-                    bg: 'bg-[#EFF6FF] border-sky-200 text-sky-950 hover:border-sky-300',
-                  },
-                  {
-                    id: 'vault',
-                    label: 'AES-256 Vault',
-                    count: 'Encrypted',
-                    bg: 'bg-[#EEF2FF] border-indigo-200 text-indigo-950 hover:border-indigo-300',
-                  },
-                  {
-                    id: 'reports',
-                    label: 'Sync & Docs',
-                    count: 'Cloud V2',
-                    bg: 'bg-slate-50 border-slate-200 text-slate-900 hover:border-slate-300',
-                  },
-                ] as { id: ModuleId; label: string; count: string; bg: string }[]
-              ).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveModule(item.id)}
-                  className={`flex items-center justify-between rounded-xl border p-3 text-left transition-colors ${item.bg}`}
-                >
-                  <span className="text-xs font-bold whitespace-nowrap">
-                    {item.label}
-                  </span>
-                  <span className="font-mono text-[11px] tabular-nums opacity-80">
-                    {item.count}
-                  </span>
-                </button>
-              ))}
+          {/* Top Outflow Categories Breakdown */}
+          {categoryBreakdown.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Top Expense Categories
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Proportional distribution of recorded outflows
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-slate-500">
+                  Share of Spend
+                </span>
+              </div>
+              <div className="space-y-3">
+                {categoryBreakdown.map((item) => (
+                  <div key={item.category} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-800">
+                        {item.category}
+                      </span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {formatINRFromPaise(item.amountPaise, {
+                          masked: privacyMasked,
+                        })}{' '}
+                        <span className="text-slate-400">
+                          ({item.sharePct}%)
+                        </span>
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-indigo-500 transition-all"
+                        style={{ width: `${Math.max(6, item.sharePct)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Right 5 Columns: Bank Accounts Summary, Pending Dues Watchlist, and Quick Module Hub */}
+        <div className="space-y-6 lg:col-span-5">
+          {/* Bank & Cash Treasury Snapshot */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Bank & Cash Accounts
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Direct balances across your active accounts
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveModule('bank')}
+                className="text-xs font-bold text-indigo-700 hover:underline"
+              >
+                View All →
+              </button>
+            </div>
+
+            {accounts.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                No bank or cash accounts added yet. Add your primary bank account or cash drawer in Bank & Cash.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {accounts.slice(0, 4).map((acc) => (
+                  <div
+                    key={acc.id}
+                    className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-slate-900">
+                        {acc.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {acc.bank_name || acc.account_type.toUpperCase()}
+                        {acc.account_number_last4
+                          ? ` · ••${acc.account_number_last4}`
+                          : ''}
+                      </p>
+                    </div>
+                    <span className="font-mono text-xs font-bold text-slate-900">
+                      {formatINRFromPaise(acc.balance_paise, {
+                        masked: privacyMasked,
+                      })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pending Customer & Supplier Dues Watchlist */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Pending Settlements (Udhar)
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Upcoming customer collections & supplier bills
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveModule('dues')}
+                className="text-xs font-bold text-amber-800 hover:underline"
+              >
+                Settle Dues →
+              </button>
+            </div>
+
+            {pendingDuesList.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                All party accounts are settled. No pending receivables or supplier dues.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {pendingDuesList.map((due) => {
+                  const remaining = Math.max(
+                    0,
+                    due.total_amount_paise - due.paid_amount_paise
+                  );
+                  const isRec = due.direction === 'receivable';
+                  return (
+                    <div
+                      key={due.id}
+                      className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 ${
+                        isRec
+                          ? 'border-amber-200 bg-[#FFFBEB]/60'
+                          : 'border-rose-200 bg-[#FFF1F2]/60'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold text-slate-900">
+                          {due.party_name}
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          {isRec ? 'To Receive' : 'To Pay'} · Due{' '}
+                          {new Date(due.due_date).toLocaleDateString('en-IN')}
+                        </p>
+                      </div>
+                      <span
+                        className={`font-mono text-xs font-bold ${
+                          isRec ? 'text-amber-900' : 'text-rose-900'
+                        }`}
+                      >
+                        {formatINRFromPaise(remaining, {
+                          masked: privacyMasked,
+                        })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Workspace Productivity Modules Shortcut */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveModule('notes')}
+              className="flex flex-col justify-between rounded-2xl border border-amber-200 bg-[#FFFBEB]/75 p-4 text-left transition-all hover:border-amber-300"
+            >
+              <StickyNote className="h-4 w-4 text-amber-800" />
+              <div className="mt-3">
+                <p className="text-xs font-bold text-slate-900">
+                  Smart Notes ({notes.filter((n) => !n.is_trashed).length})
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-600">
+                  Auto-summed checklists
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModule('sheets')}
+              className="flex flex-col justify-between rounded-2xl border border-sky-200 bg-[#EFF6FF]/75 p-4 text-left transition-all hover:border-sky-300"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-sky-800" />
+              <div className="mt-3">
+                <p className="text-xs font-bold text-slate-900">
+                  Registers ({sheets.length})
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-600">
+                  Custom GST & stock grids
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModule('vault')}
+              className="flex flex-col justify-between rounded-2xl border border-indigo-200 bg-[#EEF2FF]/75 p-4 text-left transition-all hover:border-indigo-300"
+            >
+              <Lock className="h-4 w-4 text-indigo-800" />
+              <div className="mt-3">
+                <p className="text-xs font-bold text-slate-900">
+                  Encrypted Vault ({vaultItems.length})
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-600">
+                  AES-256 PINs & passwords
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModule('reports')}
+              className="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-[#ECFDF5]/75 p-4 text-left transition-all hover:border-emerald-300"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-800" />
+              <div className="mt-3">
+                <p className="text-xs font-bold text-slate-900">
+                  Security & P&L
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-600">
+                  PIN Lock, Audit & Backup
+                </p>
+              </div>
+            </button>
           </div>
         </div>
       </div>

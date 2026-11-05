@@ -44,8 +44,11 @@ export function formatINR(paise: number, showDecimals = false): string {
 
 export function formatINRFromPaise(
   paise: number,
-  options?: { showSign?: boolean; showDecimals?: boolean }
+  options?: { showSign?: boolean; showDecimals?: boolean; masked?: boolean }
 ): string {
+  if (options?.masked) {
+    return '₹ ••••••';
+  }
   const rupees = paiseToRupees(paise || 0);
   const abs = Math.abs(rupees);
   const formatted = new Intl.NumberFormat('en-IN', {
@@ -324,3 +327,59 @@ export function reconcileV2Records<
     nextConfirmedCloudIds,
   };
 }
+
+/**
+ * Deterministic salted hash for 4-digit App Lock PIN verification.
+ */
+export function hashSecurityPin(pin: string): string {
+  const normalized = (pin || '').trim();
+  const salted = `rb_v2_pin_salt_9941::${normalized}::vault_guard`;
+  let h1 = 0xdeadbeef ^ salted.length;
+  let h2 = 0x41c6ce57 ^ salted.length;
+  for (let i = 0; i < salted.length; i++) {
+    const ch = salted.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 =
+    Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+    Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 =
+    Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+    Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `pinv2_${hex1}${hex2}`;
+}
+
+export function verifySecurityPin(pin: string, expectedHash: string | null | undefined): boolean {
+  if (!expectedHash) return false;
+  return hashSecurityPin(pin) === expectedHash;
+}
+
+/**
+ * Evaluates secret / password strength for the Encrypted Vault.
+ */
+export function evaluateSecretStrength(secret: string): {
+  score: number;
+  label: 'Weak' | 'Fair' | 'Strong' | 'Vault Grade';
+  color: 'rose' | 'amber' | 'sky' | 'emerald';
+} {
+  const s = (secret || '').trim();
+  if (!s) {
+    return { score: 0, label: 'Weak', color: 'rose' };
+  }
+  let points = 0;
+  if (s.length >= 6) points += 1;
+  if (s.length >= 10) points += 1;
+  if (s.length >= 14) points += 1;
+  if (/[A-Z]/.test(s) && /[a-z]/.test(s)) points += 1;
+  if (/\d/.test(s)) points += 1;
+  if (/[^A-Za-z0-9]/.test(s)) points += 1;
+
+  if (points <= 2) return { score: 25, label: 'Weak', color: 'rose' };
+  if (points <= 3) return { score: 55, label: 'Fair', color: 'amber' };
+  if (points <= 4) return { score: 80, label: 'Strong', color: 'sky' };
+  return { score: 100, label: 'Vault Grade', color: 'emerald' };
+}
+

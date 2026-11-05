@@ -1,23 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  Check,
   Copy,
   Eye,
   EyeOff,
   KeyRound,
   Lock,
   Plus,
-  RefreshCw,
   ShieldCheck,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
-import {
-  decryptVaultSecret,
-  encryptVaultSecret,
-  generateStrongSecret,
-} from '@/lib/utils';
+import { useV2Store } from '../store/useV2Store';
+import { evaluateSecretStrength } from '../engine/financialEngine';
+import { SphereScope, V2VaultItem } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -27,276 +25,441 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { SphereScope, V2VaultItem, VaultCategory } from '@/types/v2';
+
+async function deriveVaultKey(passphrase: string, saltHex: string) {
+  const enc = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey(
+    'raw',
+    enc.encode(passphrase),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
+  );
+  const saltBytes = new Uint8Array(
+    saltHex.match(/.{1,2}/g)?.map((b) => parseInt(b, 16)) || [1, 2, 3, 4]
+  );
+  return window.crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: saltBytes,
+      iterations: 100000,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const pairs = hex.match(/.{1,2}/g) || [];
+  return new Uint8Array(pairs.map((b) => parseInt(b, 16)));
+}
 
 export function EncryptedVaultModule() {
-  const { vaultItems, scopeFilter, addVaultItem, deleteVaultItem } = useV2Store();
+  const {
+    vaultItems,
+    scopeFilter,
+    addVaultItem,
+    deleteVaultItem,
+    logSecurityEvent,
+  } = useV2Store();
 
-  const [masterPin, setMasterPin] = useState('1234');
+  const [masterPin, setMasterPin] = useState('');
   const [addOpen, setAddOpen] = useState(false);
-  const [revealedSecrets, setRevealedSecrets] = useState<Record<string, string>>({});
-  const [decryptErrors, setDecryptErrors] = useState<Record<string, string>>({});
+  const [categoryFilter, setCategoryFilter] = useState<
+    'all' | V2VaultItem['category']
+  >('all');
+  const [decryptedMap, setDecryptedMap] = useState<Record<string, string>>({});
+  const [decryptErrors, setDecryptErrors] = useState<Record<string, string>>(
+    {}
+  );
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Add Secret Form State
+  // Add Form State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<VaultCategory>('login');
-  const [username, setUsername] = useState('');
-  const [plainSecret, setPlainSecret] = useState('');
-  const [scope, setScope] = useState<SphereScope>('business');
-  const [notes, setNotes] = useState('');
+  const [category, setCategory] = useState<V2VaultItem['category']>('bank_pin');
+  const [usernameHint, setUsernameHint] = useState('');
+  const [secretPlaintext, setSecretPlaintext] = useState('');
+  const [scope, setScope] = useState<SphereScope>('personal');
 
-  const visibleVault = vaultItems.filter(
-    (v) => scopeFilter === 'all' || v.scope === scopeFilter
-  );
+  // Auto-clear decrypted secrets after 15 seconds for security
+  useEffect(() => {
+    const keys = Object.keys(decryptedMap);
+    if (keys.length === 0) return;
+    const timer = setTimeout(() => {
+      setDecryptedMap({});
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [decryptedMap]);
 
-  const handleCreateSecret = async (e: React.FormEvent) => {
+  const visibleVault = vaultItems
+    .filter((v) => (scopeFilter === 'all' ? true : v.scope === scopeFilter))
+    .filter((v) =>
+      categoryFilter === 'all' ? true : v.category === categoryFilter
+    );
+
+  const strength = evaluateSecretStrength(secretPlaintext);
+
+  const generateStrongSecret = () => {
+    const chars =
+      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+    const arr = new Uint32Array(16);
+    window.crypto.getRandomValues(arr);
+    const out = Array.from(arr, (n) => chars[n % chars.length]).join('');
+    setSecretPlaintext(out);
+  };
+
+  const handleEncryptAndSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !plainSecret.trim() || !masterPin.trim()) return;
+    if (!title.trim() || !secretPlaintext.trim() || !masterPin.trim()) return;
 
-    const encrypted = await encryptVaultSecret(plainSecret.trim(), masterPin.trim());
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const saltHex = bytesToHex(salt);
+    const ivHex = bytesToHex(iv);
+
+    const key = await deriveVaultKey(masterPin, saltHex);
+    const encoded = new TextEncoder().encode(secretPlaintext);
+    const cipherBuf = await window.crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      encoded
+    );
+
+    const ciphertextHex = bytesToHex(new Uint8Array(cipherBuf));
+
     await addVaultItem({
       title: title.trim(),
       category,
-      username: username.trim(),
-      cipher_text: encrypted.cipher_text,
-      iv: encrypted.iv,
-      salt: encrypted.salt,
-      notes: notes.trim(),
+      username: usernameHint.trim(),
+      cipher_text: ciphertextHex,
+      iv: ivHex,
+      salt: saltHex,
       scope,
     });
 
+    logSecurityEvent(
+      'Vault Secret Encrypted',
+      `Stored ${title.trim()} (${category.replace('_', ' ')})`
+    );
+
     setTitle('');
-    setUsername('');
-    setPlainSecret('');
-    setNotes('');
+    setUsernameHint('');
+    setSecretPlaintext('');
     setAddOpen(false);
   };
 
-  const handleToggleReveal = async (item: V2VaultItem) => {
-    if (revealedSecrets[item.id]) {
-      setRevealedSecrets((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
+  const handleToggleDecrypt = async (item: V2VaultItem) => {
+    if (decryptedMap[item.id]) {
+      const copy = { ...decryptedMap };
+      delete copy[item.id];
+      setDecryptedMap(copy);
+      return;
+    }
+
+    if (!masterPin.trim()) {
+      setDecryptErrors((prev) => ({
+        ...prev,
+        [item.id]: 'Enter your Master Passphrase above first.',
+      }));
       return;
     }
 
     try {
-      const clearText = await decryptVaultSecret(
-        item.cipher_text,
-        item.iv,
-        item.salt,
-        masterPin.trim()
+      const key = await deriveVaultKey(masterPin, item.salt);
+      const iv = hexToBytes(item.iv);
+      const cipherBytes = hexToBytes(item.cipher_text);
+      const plainBuf = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv as BufferSource },
+        key,
+        cipherBytes as BufferSource
       );
-      setRevealedSecrets((prev) => ({ ...prev, [item.id]: clearText }));
-      setDecryptErrors((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
+      const plainText = new TextDecoder().decode(plainBuf);
+      setDecryptedMap((prev) => ({ ...prev, [item.id]: plainText }));
+      setDecryptErrors((prev) => ({ ...prev, [item.id]: '' }));
+      logSecurityEvent(
+        'Vault Secret Decrypted',
+        `Revealed ${item.title} (auto-hides in 15s)`
+      );
     } catch {
       setDecryptErrors((prev) => ({
         ...prev,
-        [item.id]: 'Incorrect Master Passphrase / PIN',
+        [item.id]: 'Incorrect Master Passphrase for this item.',
       }));
+      logSecurityEvent(
+        'Failed Vault Decryption',
+        `Incorrect passphrase attempt for ${item.title}`
+      );
     }
   };
 
-  const handleCopy = async (id: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+  const handleCopySecret = (id: string, val: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(val);
       setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch {}
+      setTimeout(() => setCopiedId(null), 1500);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Pastel Lavender Header */}
-      <div className="rounded-2xl border border-indigo-200 bg-[#EEF2FF] p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">
-              Module 08 · Client-Side WebCrypto PBKDF2 + AES-GCM 256-Bit
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Zero-Knowledge Encrypted Vault
-            </h1>
-            <p className="mt-1 text-sm text-slate-700">
-              Banking passwords, corporate GST portal credentials & card PINs are encrypted in browser memory before storage.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-1.5">
-              <KeyRound className="h-4 w-4 text-indigo-600" />
-              <span className="text-xs font-semibold text-slate-600">
-                Active Master PIN:
-              </span>
-              <input
-                type="password"
-                value={masterPin}
-                onChange={(e) => {
-                  setMasterPin(e.target.value);
-                  setRevealedSecrets({});
-                }}
-                className="w-24 rounded border border-slate-200 px-2 py-1 font-mono text-xs text-slate-900"
-                placeholder="Master PIN"
-              />
+      {/* Executive Header */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs sm:flex-row sm:items-center">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-[#EEF2FF] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-800">
+            <ShieldCheck className="h-3.5 w-3.5 text-indigo-700" />
+            AES-256 Zero-Knowledge Security
+          </span>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900">
+            Password & PIN Vault
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Your netbanking passwords, corporate card PINs, and recovery keys are encrypted on your device before saving.
+          </p>
+        </div>
+
+        <Button onClick={() => setAddOpen(true)}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          Encrypt New Credential
+        </Button>
+      </div>
+
+      {/* Master Passphrase Bar */}
+      <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-5 shadow-2xs">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-200 bg-white text-indigo-700 shadow-2xs">
+              <KeyRound className="h-5 w-5" />
             </div>
-            <Button
-              variant="default"
-              onClick={() => setAddOpen(true)}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              + Encrypt New Secret
-            </Button>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Session Master Passphrase
+              </h2>
+              <p className="text-xs text-slate-600">
+                Required in-memory to encrypt new secrets or unlock existing vault items. Revealed secrets auto-hide after 15 seconds.
+              </p>
+            </div>
+          </div>
+
+          <div className="w-full md:w-80">
+            <Input
+              type="password"
+              placeholder="Enter Session Master Passphrase..."
+              value={masterPin}
+              onChange={(e) => setMasterPin(e.target.value)}
+              className="bg-white"
+            />
           </div>
         </div>
       </div>
 
-      {/* Vault Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {visibleVault.length === 0 ? (
-          <div className="col-span-full rounded-2xl border border-slate-200 bg-white p-12 text-center">
-            <ShieldCheck className="mx-auto h-9 w-9 text-indigo-600" />
-            <h3 className="mt-3 text-base font-bold text-slate-900">
-              Your AES-256 Encrypted Vault is Ready
-            </h3>
-            <p className="mt-1 text-xs text-slate-500">
-              Click &quot;+ Encrypt New Secret&quot; to store banking logins, GST portal passwords, or card PINs using your Master PIN.
-            </p>
-          </div>
-        ) : (
-          visibleVault.map((item) => {
-            const revealed = revealedSecrets[item.id];
+      {/* Category Filter Pills */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(
+          [
+            { id: 'all', label: 'All Credentials' },
+            { id: 'bank_pin', label: 'Bank & UPI PINs' },
+            { id: 'card_pin', label: 'Card PINs' },
+            { id: 'login', label: 'Portal Logins' },
+            { id: 'secret_note', label: 'Recovery Keys' },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setCategoryFilter(tab.id)}
+            className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              categoryFilter === tab.id
+                ? 'border-indigo-300 bg-[#EEF2FF] text-indigo-950'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Vault Cards Grid */}
+      {visibleVault.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <Lock className="mx-auto h-8 w-8 text-indigo-500" />
+          <p className="mt-2 text-sm font-bold text-slate-800">
+            No encrypted credentials in this category
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Enter a Session Master Passphrase above and click &ldquo;Encrypt New Credential&rdquo; to store sensitive PINs or passwords.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visibleVault.map((item) => {
+            const revealed = decryptedMap[item.id];
             const err = decryptErrors[item.id];
             return (
               <div
                 key={item.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6"
+                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs"
               >
                 <div>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-indigo-200 bg-[#EEF2FF] text-indigo-700">
-                        <Lock className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900">
-                          {item.title}
-                        </h3>
+                    <div>
+                      <span className="rounded-md border border-indigo-200 bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-900">
+                        {item.category.replace('_', ' ')}
+                      </span>
+                      <h3 className="mt-2 text-base font-bold text-slate-900">
+                        {item.title}
+                      </h3>
+                      {item.username && (
                         <p className="text-xs text-slate-500">
-                          {item.category.toUpperCase()} · {item.scope.toUpperCase()}
-                          {item.username ? ` · ID: ${item.username}` : ''}
+                          ID / Hint: {item.username}
                         </p>
-                      </div>
+                      )}
                     </div>
+
                     <button
                       type="button"
                       onClick={() => deleteVaultItem(item.id)}
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      title="Delete Vault Item"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                        {revealed ? 'Decrypted Plaintext' : 'AES-GCM Ciphertext'}
-                      </span>
-                      <div className="flex items-center gap-1.5">
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs">
+                    {revealed ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-emerald-800 break-all">
+                          {revealed}
+                        </span>
                         <button
                           type="button"
-                          onClick={() => handleToggleReveal(item)}
-                          className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          onClick={() => handleCopySecret(item.id, revealed)}
+                          className="shrink-0 rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-800 hover:bg-emerald-50"
                         >
-                          {revealed ? (
-                            <>
-                              <EyeOff className="h-3.5 w-3.5" /> Hide
-                            </>
+                          {copiedId === item.id ? (
+                            <Check className="h-3 w-3" />
                           ) : (
-                            <>
-                              <Eye className="h-3.5 w-3.5" /> Decrypt
-                            </>
+                            <Copy className="h-3 w-3" />
                           )}
                         </button>
-                        {revealed && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(item.id, revealed)}
-                            className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-[#EEF2FF] px-2.5 py-1 text-xs font-semibold text-indigo-800"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            {copiedId === item.id ? 'Copied!' : 'Copy'}
-                          </button>
-                        )}
                       </div>
-                    </div>
-                    <p className="mt-2 truncate font-mono text-sm font-bold text-slate-900">
-                      {revealed ? revealed : `•••••••••••••••• (${item.cipher_text.slice(0, 18)}...)`}
-                    </p>
-                    {err && (
-                      <p className="mt-1 text-xs font-semibold text-rose-600">
-                        {err}
-                      </p>
+                    ) : (
+                      <span className="text-slate-400">
+                        AES-256 •••• {item.cipher_text.slice(0, 14)}…
+                      </span>
                     )}
                   </div>
+
+                  {err && (
+                    <p className="mt-1.5 text-xs font-medium text-rose-600">
+                      {err}
+                    </p>
+                  )}
                 </div>
 
-                {item.notes && (
-                  <p className="mt-3 text-xs text-slate-500">{item.notes}</p>
-                )}
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <span className="text-[11px] font-medium capitalize text-slate-500">
+                    {revealed ? 'Auto-hides in 15s' : `Sphere: ${item.scope}`}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleToggleDecrypt(item)}
+                  >
+                    {revealed ? (
+                      <>
+                        <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+                        Hide Secret
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-1.5 h-3.5 w-3.5" />
+                        Unlock & View
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
-      {/* Encrypt New Secret Modal */}
+      {/* Add Encrypted Secret Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Encrypt Credential in AES-256 Vault</DialogTitle>
+            <DialogTitle>Encrypt & Store Credential</DialogTitle>
             <DialogDescription>
-              Encrypted locally using WebCrypto PBKDF2 (100,000 iterations) with your active Master PIN ({masterPin}).
+              Encrypted locally in your browser using AES-256-GCM before storage.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateSecret} className="space-y-4">
+          <form onSubmit={handleEncryptAndSave} className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Credential Title *
+                Master Passphrase (Used to Encrypt) *
               </label>
               <Input
+                type="password"
                 required
-                placeholder="HDFC NetBanking Corporate Login"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter Master Passphrase..."
+                value={masterPin}
+                onChange={(e) => setMasterPin(e.target.value)}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Credential Title *
+                </label>
+                <Input
+                  required
+                  placeholder="e.g. HDFC Corporate NetBanking"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Category
                 </label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as VaultCategory)}
+                  onChange={(e) => setCategory(e.target.value as any)}
                   className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
                 >
-                  <option value="login">Portal Login</option>
-                  <option value="bank_pin">Bank / Transaction PIN</option>
+                  <option value="bank_pin">Bank / UPI PIN</option>
                   <option value="card_pin">Credit / Debit Card PIN</option>
-                  <option value="secret_note">Private Key / Recovery Phrase</option>
+                  <option value="login">Portal Login Password</option>
+                  <option value="secret_note">Recovery Seed / Key</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Username / Customer ID Hint
+                </label>
+                <Input
+                  placeholder="e.g. Cust ID: 884120"
+                  value={usernameHint}
+                  onChange={(e) => setUsernameHint(e.target.value)}
+                />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere Scope
+                  Sphere
                 </label>
                 <select
                   value={scope}
@@ -311,46 +474,44 @@ export function EncryptedVaultModule() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Username / Customer ID
-              </label>
-              <Input
-                placeholder="CUST884920"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-
-            <div>
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-700">
-                  Secret Password / PIN *
+                <label className="block text-xs font-semibold text-slate-700">
+                  Secret PIN / Password *
                 </label>
                 <button
                   type="button"
-                  onClick={() => setPlainSecret(generateStrongSecret(16))}
-                  className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline"
+                  onClick={generateStrongSecret}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:underline"
                 >
-                  <RefreshCw className="h-3 w-3" /> Generate Strong Secret
+                  <Sparkles className="h-3 w-3" />
+                  Generate Strong Key
                 </button>
               </div>
               <Input
+                type="password"
                 required
-                placeholder="Enter secret to encrypt..."
-                value={plainSecret}
-                onChange={(e) => setPlainSecret(e.target.value)}
+                placeholder="Plaintext secret to encrypt..."
+                value={secretPlaintext}
+                onChange={(e) => setSecretPlaintext(e.target.value)}
               />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Notes
-              </label>
-              <Input
-                placeholder="Rotated quarterly"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
+              {secretPlaintext && (
+                <div className="mt-2 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Encryption Strength:</span>
+                  <span
+                    className={`font-bold ${
+                      strength.color === 'emerald'
+                        ? 'text-emerald-700'
+                        : strength.color === 'sky'
+                          ? 'text-sky-700'
+                          : strength.color === 'amber'
+                            ? 'text-amber-700'
+                            : 'text-rose-700'
+                    }`}
+                  >
+                    {strength.label}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -361,7 +522,10 @@ export function EncryptedVaultModule() {
               >
                 Cancel
               </Button>
-              <Button type="submit">Encrypt & Save</Button>
+              <Button type="submit">
+                <Lock className="mr-1.5 h-3.5 w-3.5" />
+                Encrypt & Save
+              </Button>
             </div>
           </form>
         </DialogContent>

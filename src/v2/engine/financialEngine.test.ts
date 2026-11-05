@@ -4,19 +4,37 @@ import {
   rupeesToPaise,
   paiseToRupees,
   formatINR,
+  formatINRFromPaise,
   ensureValidUuid,
   extractPaiseFromText,
   computeNoteChecklistTotals,
   computeOverviewMetrics,
   selectCanonicalV2Workspace,
   reconcileV2Records,
+  hashSecurityPin,
+  verifySecurityPin,
+  evaluateSecretStrength,
 } from './financialEngine';
 
-test('rupeesToPaise and paiseToRupees convert accurately without floating-point drift', () => {
+test('rupeesToPaise and paiseToRupees convert accurately without floating-point drift and support privacy masking', () => {
   assert.equal(rupeesToPaise(19.99), 1999);
   assert.equal(rupeesToPaise('₹1,25,000.50'), 12500050);
   assert.equal(paiseToRupees(12500050), 125000.5);
   assert.equal(formatINR(12500000), '₹1,25,000');
+  assert.equal(formatINRFromPaise(12500000, { masked: true }), '₹ ••••••');
+  assert.equal(formatINRFromPaise(12500000, { showSign: true }), '+₹1,25,000');
+});
+
+test('hashSecurityPin, verifySecurityPin, and evaluateSecretStrength validate production security controls', () => {
+  const hash = hashSecurityPin('4829');
+  assert.equal(verifySecurityPin('4829', hash), true);
+  assert.equal(verifySecurityPin('0000', hash), false);
+  assert.equal(verifySecurityPin('4829', null), false);
+
+  const weak = evaluateSecretStrength('1234');
+  const strong = evaluateSecretStrength('R#9kL!2mQv$8xP@4');
+  assert.equal(weak.label, 'Weak');
+  assert.equal(strong.label, 'Vault Grade');
 });
 
 test('extractPaiseFromText and computeNoteChecklistTotals extract live ₹ totals from checklist items', () => {
