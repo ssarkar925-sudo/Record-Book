@@ -18,6 +18,8 @@ import { evaluateSecretStrength } from '../engine/financialEngine';
 import { SphereScope, V2VaultItem } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { toast } from '@/components/ui/toastStore';
 import {
   Dialog,
   DialogContent,
@@ -150,6 +152,7 @@ export function EncryptedVaultModule() {
       'Vault Secret Encrypted',
       `Stored ${title.trim()} (${category.replace('_', ' ')})`
     );
+    toast.success('Credential Encrypted', `${title.trim()} secured with AES-256`);
 
     setTitle('');
     setUsernameHint('');
@@ -170,6 +173,7 @@ export function EncryptedVaultModule() {
         ...prev,
         [item.id]: 'Enter your Master Passphrase above first.',
       }));
+      toast.warning('Passphrase Required', 'Enter your Session Master Passphrase');
       return;
     }
 
@@ -189,6 +193,7 @@ export function EncryptedVaultModule() {
         'Vault Secret Decrypted',
         `Revealed ${item.title} (auto-hides in 15s)`
       );
+      toast.info('Secret Revealed', `${item.title} visible (auto-hides in 15s)`);
     } catch {
       setDecryptErrors((prev) => ({
         ...prev,
@@ -198,6 +203,7 @@ export function EncryptedVaultModule() {
         'Failed Vault Decryption',
         `Incorrect passphrase attempt for ${item.title}`
       );
+      toast.error('Decryption Failed', 'Incorrect Master Passphrase');
     }
   };
 
@@ -205,6 +211,7 @@ export function EncryptedVaultModule() {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       void navigator.clipboard.writeText(val);
       setCopiedId(id);
+      toast.info('Copied to Clipboard', 'Confidential secret copied');
       setTimeout(() => setCopiedId(null), 1500);
     }
   };
@@ -261,30 +268,21 @@ export function EncryptedVaultModule() {
         </div>
       </div>
 
-      {/* Category Filter Pills */}
+      {/* Category Filter Segmented Control */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {(
-          [
-            { id: 'all', label: 'All Credentials' },
+        <SegmentedControl<'all' | V2VaultItem['category']>
+          options={[
+            { id: 'all', label: 'All', count: vaultItems.length },
             { id: 'bank_pin', label: 'Bank & UPI PINs' },
             { id: 'card_pin', label: 'Card PINs' },
             { id: 'login', label: 'Portal Logins' },
             { id: 'secret_note', label: 'Recovery Keys' },
-          ] as const
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setCategoryFilter(tab.id)}
-            className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              categoryFilter === tab.id
-                ? 'border-indigo-300 bg-[#EEF2FF] text-indigo-950'
-                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+          ]}
+          value={categoryFilter}
+          onChange={(val) => setCategoryFilter(val)}
+          layoutId="vault-category-segmented"
+          size="sm"
+        />
       </div>
 
       {/* Vault Cards Grid */}
@@ -306,7 +304,7 @@ export function EncryptedVaultModule() {
             return (
               <div
                 key={item.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs"
+                className="glass-card glass-card-hover flex flex-col justify-between border border-slate-200/80 border-t-2 border-t-indigo-500/80 p-5 shadow-2xs transition-all hover:border-indigo-300"
               >
                 <div>
                   <div className="flex items-start justify-between">

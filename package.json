@@ -7,7 +7,7 @@
     "build": "next build --webpack && node -e \"const fs=require('fs');if(fs.existsSync('.next/routes-manifest.json')){fs.mkdirSync('out',{recursive:true});for(const f of fs.readdirSync('.next')){if(f.endsWith('.json')||f==='BUILD_ID')try{fs.copyFileSync('.next/'+f,'out/'+f)}catch{}}}\"",
     "start": "next start --port 3000",
     "lint": "eslint",
-    "test": "tsx --test src/v2/engine/financialEngine.test.ts src/backend/appModule.test.ts"
+    "test": "tsx --test src/v2/engine/financialEngine.test.ts src/v2/engine/recordBookScenarios.test.ts src/backend/appModule.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^7.0.1",

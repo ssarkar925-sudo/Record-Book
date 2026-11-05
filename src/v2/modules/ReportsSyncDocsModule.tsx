@@ -26,6 +26,8 @@ import {
 } from '../engine/financialEngine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { toast } from '@/components/ui/toastStore';
 
 export function ReportsSyncDocsModule() {
   const {
@@ -157,6 +159,7 @@ export function ReportsSyncDocsModule() {
     a.download = `record-book-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    toast.success('Backup Exported', 'Full JSON encrypted backup saved');
   };
 
   const handleExportPnlCsv = () => {
@@ -175,6 +178,7 @@ export function ReportsSyncDocsModule() {
     a.download = `record-book-pnl-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    toast.info('Export Completed', 'P&L Statement CSV downloaded');
   };
 
   const netOperatingSurplus =
@@ -198,46 +202,17 @@ export function ReportsSyncDocsModule() {
         </div>
 
         {/* 3-Tab Switcher */}
-        <div className="flex shrink-0 items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1 whitespace-nowrap">
-          <button
-            type="button"
-            onClick={() => setActiveTab('pnl')}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-              activeTab === 'pnl'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <FileBarChart2 className="h-3.5 w-3.5 text-indigo-600" />
-            <span>P&L Statements</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('security')}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-              activeTab === 'security'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-            <span>Security & Privacy</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('backup')}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-              activeTab === 'backup'
-                ? 'bg-white text-slate-900 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Cloud className="h-3.5 w-3.5 text-sky-600" />
-            <span>Cloud & Backup</span>
-          </button>
-        </div>
+        <SegmentedControl<'pnl' | 'security' | 'backup'>
+          options={[
+            { id: 'pnl', label: 'P&L Statements', icon: FileBarChart2 },
+            { id: 'security', label: 'Security & Privacy', icon: ShieldCheck },
+            { id: 'backup', label: 'Cloud & Backup', icon: Cloud },
+          ]}
+          value={activeTab}
+          onChange={(val) => setActiveTab(val)}
+          layoutId="reports-tab-segmented"
+          size="sm"
+        />
       </div>
 
       {/* TAB 1: FINANCIAL P&L REPORTS */}

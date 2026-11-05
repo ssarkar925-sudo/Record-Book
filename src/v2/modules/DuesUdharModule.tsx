@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import {
   CheckCircle2,
   HandCoins,
+  MessageCircle,
   Phone,
   Plus,
   Search,
@@ -14,6 +15,9 @@ import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { DueDirection, SphereScope, V2PartyDue } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { toast } from '@/components/ui/toastStore';
 import {
   Dialog,
   DialogContent,
@@ -125,6 +129,10 @@ export function DuesUdharModule() {
     setPaidRupees('0');
     setNotes('');
     setAddOpen(false);
+    toast.success(
+      direction === 'receivable' ? 'Customer Due Added' : 'Supplier Bill Added',
+      `${partyName.trim()} saved`
+    );
   };
 
   const handleSettle = async (e: React.FormEvent) => {
@@ -144,6 +152,7 @@ export function DuesUdharModule() {
     setSettleTargetId(null);
     setPayRupees('');
     setPayRemark('');
+    toast.success('Payment Settled', `₹${Number(payRupees).toLocaleString('en-IN')} updated`);
   };
 
   const targetDue = dues.find((d) => d.id === settleTargetId);
@@ -170,76 +179,66 @@ export function DuesUdharModule() {
         </Button>
       </div>
 
-      {/* 3-Card Summary Banner */}
+      {/* 3-Card Daylight KPI Summary Banner */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-[#FFFBEB] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-900">
-            To Collect (Customer Receivables)
-          </p>
-          <p className="mt-2 font-mono text-2xl font-extrabold text-amber-950">
-            {formatINRFromPaise(receivableTotal, { masked: privacyMasked })}
-          </p>
-          <p className="mt-1 text-[11px] text-amber-900/80">
-            Pending money to receive from customers
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="To Collect (Receivables)"
+          paise={receivableTotal}
+          icon={HandCoins}
+          accent="amber"
+          badgeText={`${dues.filter((d) => d.direction === 'receivable' && d.status !== 'settled').length} Pending`}
+          badgeVariant="warning"
+          subtitle="Customer market credit (Udhar)"
+        />
 
-        <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-rose-900">
-            To Pay (Supplier Payables)
-          </p>
-          <p className="mt-2 font-mono text-2xl font-extrabold text-rose-950">
-            {formatINRFromPaise(payableTotal, { masked: privacyMasked })}
-          </p>
-          <p className="mt-1 text-[11px] text-rose-900/80">
-            Pending bills payable to vendors
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="To Pay (Vendor Payables)"
+          paise={payableTotal}
+          icon={HandCoins}
+          accent="rose"
+          badgeText={`${dues.filter((d) => d.direction === 'payable' && d.status !== 'settled').length} Bills`}
+          badgeVariant="danger"
+          subtitle="Vendor credit & supplier dues"
+        />
 
-        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
-            Net Credit Position
-          </p>
-          <p
-            className={`mt-2 font-mono text-2xl font-extrabold ${
-              netPosition >= 0 ? 'text-emerald-800' : 'text-rose-800'
-            }`}
-          >
-            {formatINRFromPaise(netPosition, {
-              showSign: true,
-              masked: privacyMasked,
-            })}
-          </p>
-          <p className="mt-1 text-[11px] text-indigo-900/80">
-            Receivables minus payables
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Net Credit Position"
+          paise={Math.abs(netPosition)}
+          icon={HandCoins}
+          accent={netPosition >= 0 ? 'emerald' : 'rose'}
+          badgeText={netPosition >= 0 ? 'Net Receivable' : 'Net Payable'}
+          badgeVariant={netPosition >= 0 ? 'success' : 'danger'}
+          subtitle={netPosition >= 0 ? 'Customers owe you more than you owe' : 'Payables exceed receivables'}
+        />
       </div>
 
       {/* Filter Tabs + Party Search */}
-      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs sm:flex-row sm:items-center">
+      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-2xs backdrop-blur-sm sm:flex-row sm:items-center">
         <div className="flex flex-wrap items-center gap-1.5">
-          {(
-            [
-              { id: 'all', label: 'All Parties' },
-              { id: 'receivable', label: 'To Receive' },
-              { id: 'payable', label: 'To Pay' },
-              { id: 'settled', label: 'Settled' },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTabFilter(t.id)}
-              className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                tabFilter === t.id
-                  ? 'border-amber-300 bg-[#FFFBEB] text-amber-950'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          <SegmentedControl<'all' | 'receivable' | 'payable' | 'settled'>
+            options={[
+              { id: 'all', label: 'All Parties', count: dues.length },
+              {
+                id: 'receivable',
+                label: 'To Receive',
+                count: dues.filter((d) => d.direction === 'receivable' && d.status !== 'settled').length,
+              },
+              {
+                id: 'payable',
+                label: 'To Pay',
+                count: dues.filter((d) => d.direction === 'payable' && d.status !== 'settled').length,
+              },
+              {
+                id: 'settled',
+                label: 'Settled',
+                count: dues.filter((d) => d.status === 'settled').length,
+              },
+            ]}
+            value={tabFilter}
+            onChange={(val) => setTabFilter(val)}
+            layoutId="dues-filter-segmented"
+            size="sm"
+          />
         </div>
 
         <div className="relative w-full sm:w-64">
@@ -286,12 +285,12 @@ export function DuesUdharModule() {
             return (
               <div
                 key={due.id}
-                className={`flex flex-col justify-between rounded-2xl border p-5 shadow-2xs ${
+                className={`glass-card glass-card-hover flex flex-col justify-between p-5 border shadow-2xs transition-all ${
                   due.status === 'settled'
-                    ? 'border-emerald-200 bg-[#ECFDF5]/60'
+                    ? 'border-emerald-200/90 border-t-2 border-t-emerald-500 bg-emerald-50/20'
                     : isReceivable
-                      ? 'border-amber-200 bg-[#FFFBEB]/65'
-                      : 'border-rose-200 bg-[#FFF1F2]/65'
+                      ? 'border-slate-200/80 border-t-2 border-t-amber-500 hover:border-amber-300'
+                      : 'border-slate-200/80 border-t-2 border-t-rose-500 hover:border-rose-300'
                 }`}
               >
                 <div>
@@ -301,22 +300,28 @@ export function DuesUdharModule() {
                         <h3 className="text-base font-bold text-slate-900">
                           {due.party_name}
                         </h3>
-                        <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
                           {due.party_type}
                         </span>
                         <span
                           className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
-                            isReceivable
-                              ? 'bg-amber-100 text-amber-900'
-                              : 'bg-rose-100 text-rose-900'
+                            due.status === 'settled'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : isReceivable
+                                ? 'bg-amber-100 text-amber-900'
+                                : 'bg-rose-100 text-rose-900'
                           }`}
                         >
-                          {isReceivable ? 'To Receive' : 'To Pay'}
+                          {due.status === 'settled'
+                            ? 'Settled'
+                            : isReceivable
+                              ? 'To Receive'
+                              : 'To Pay'}
                         </span>
                       </div>
 
                       {due.phone && (
-                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-600">
+                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                           <Phone className="h-3 w-3" /> {due.phone}
                         </p>
                       )}
@@ -325,7 +330,7 @@ export function DuesUdharModule() {
                     <button
                       type="button"
                       onClick={() => deletePartyDue(due.id)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
                       title="Delete Party Record"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -334,16 +339,15 @@ export function DuesUdharModule() {
 
                   {/* Collection Progress Bar */}
                   <div className="mt-4">
-                    <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                    <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-500">
                       <span>Settlement Progress ({paidPct}%)</span>
                       <span>
-                        Due:{' '}
-                        {new Date(due.due_date).toLocaleDateString('en-IN')}
+                        Due: {new Date(due.due_date).toLocaleDateString('en-IN')}
                       </span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/90">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className={`h-full rounded-full transition-all ${
+                        className={`h-full rounded-full transition-all duration-300 ${
                           due.status === 'settled'
                             ? 'bg-emerald-500'
                             : isReceivable
@@ -356,44 +360,56 @@ export function DuesUdharModule() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-slate-200/80 pt-3">
+                <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-slate-100 pt-3">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase text-slate-500">
+                    <p className="text-[11px] font-semibold uppercase text-slate-400">
                       Remaining Balance
                     </p>
                     <p className="font-mono text-xl font-extrabold tabular-nums text-slate-900">
                       {formatINRFromPaise(remaining, { masked: privacyMasked })}
                     </p>
-                    <p className="text-xs text-slate-600">
-                      Total:{' '}
-                      {formatINRFromPaise(due.total_amount_paise, {
-                        masked: privacyMasked,
-                      })}{' '}
-                      · Settled:{' '}
-                      {formatINRFromPaise(due.paid_amount_paise, {
-                        masked: privacyMasked,
-                      })}
+                    <p className="text-[11px] text-slate-500">
+                      Total: {formatINRFromPaise(due.total_amount_paise, { masked: privacyMasked })} · Settled: {formatINRFromPaise(due.paid_amount_paise, { masked: privacyMasked })}
                     </p>
                   </div>
 
-                  {remaining > 0 ? (
-                    <Button
-                      size="sm"
-                      variant={isReceivable ? 'emerald' : 'default'}
-                      onClick={() => {
-                        setSettleTargetId(due.id);
-                        setPayRupees(String(remaining / 100));
-                        setPayAccountId(accounts[0]?.id || '');
-                      }}
-                    >
-                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                      {isReceivable ? 'Receive Payment' : 'Pay Bill'}
-                    </Button>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-bold text-emerald-800">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Fully Settled
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {due.phone && isReceivable && remaining > 0 && (
+                      <a
+                        href={`https://wa.me/91${due.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                          `Namaste ${due.party_name}, this is a gentle reminder regarding your pending balance of ${formatINRFromPaise(
+                            remaining
+                          )} in Record Book. Thank you!`
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/80 bg-emerald-50/70 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                        title="Send WhatsApp Payment Reminder"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="hidden sm:inline">WhatsApp</span>
+                      </a>
+                    )}
+
+                    {remaining > 0 ? (
+                      <Button
+                        size="sm"
+                        variant={isReceivable ? 'emerald' : 'default'}
+                        onClick={() => {
+                          setSettleTargetId(due.id);
+                          setPayRupees(String(remaining / 100));
+                          setPayAccountId(accounts[0]?.id || '');
+                        }}
+                      >
+                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                        {isReceivable ? 'Receive' : 'Pay Bill'}
+                      </Button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-bold text-emerald-800">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Fully Settled
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );

@@ -21,6 +21,8 @@ import {
 import { NoteColorTheme, SphereScope, V2Note } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { toast } from '@/components/ui/toastStore';
 import {
   Dialog,
   DialogContent,
@@ -30,12 +32,12 @@ import {
 } from '@/components/ui/dialog';
 
 const THEME_CLASSES: Record<NoteColorTheme, string> = {
-  amber: 'border-amber-200 bg-[#FFFBEB]/90',
-  indigo: 'border-indigo-200 bg-[#EEF2FF]/90',
-  emerald: 'border-emerald-200 bg-[#ECFDF5]/90',
-  rose: 'border-rose-200 bg-[#FFF1F2]/90',
-  sky: 'border-sky-200 bg-[#EFF6FF]/90',
-  violet: 'border-indigo-200 bg-[#EEF2FF]/90',
+  amber: 'border-slate-200/80 border-t-2 border-t-amber-500 bg-white/95 hover:border-amber-300',
+  indigo: 'border-slate-200/80 border-t-2 border-t-indigo-500 bg-white/95 hover:border-indigo-300',
+  emerald: 'border-slate-200/80 border-t-2 border-t-emerald-500 bg-white/95 hover:border-emerald-300',
+  rose: 'border-slate-200/80 border-t-2 border-t-rose-500 bg-white/95 hover:border-rose-300',
+  sky: 'border-slate-200/80 border-t-2 border-t-sky-500 bg-white/95 hover:border-sky-300',
+  violet: 'border-slate-200/80 border-t-2 border-t-violet-500 bg-white/95 hover:border-violet-300',
 };
 
 export function DailyNotesModule() {
@@ -110,6 +112,7 @@ export function DailyNotesModule() {
         .filter(Boolean),
       reminder_date: reminderDate || undefined,
     });
+    toast.success('Note Created', `${title.trim() || 'Daily Note'} saved`);
     setTitle('');
     setBody('');
     setCreateOpen(false);
@@ -132,28 +135,31 @@ export function DailyNotesModule() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-            {(
-              [
-                { id: 'active', label: 'Active' },
-                { id: 'archived', label: 'Archive' },
-                { id: 'trash', label: 'Trash' },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setViewMode(tab.id)}
-                className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
-                  viewMode === tab.id
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl<'active' | 'archived' | 'trash'>
+            options={[
+              {
+                id: 'active',
+                label: 'Active',
+                count: notes.filter((n) => !n.is_trashed && !n.is_archived)
+                  .length,
+              },
+              {
+                id: 'archived',
+                label: 'Archive',
+                count: notes.filter((n) => !n.is_trashed && n.is_archived)
+                  .length,
+              },
+              {
+                id: 'trash',
+                label: 'Trash',
+                count: notes.filter((n) => n.is_trashed).length,
+              },
+            ]}
+            value={viewMode}
+            onChange={(val) => setViewMode(val)}
+            layoutId="notes-view-mode-segmented"
+            size="sm"
+          />
 
           <Button variant="amber" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" />

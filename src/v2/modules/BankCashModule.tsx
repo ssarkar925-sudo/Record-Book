@@ -16,7 +16,9 @@ import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { AnimatedCurrency } from '../components/AnimatedCurrency';
 import { AccountType, SphereScope, V2Account } from '@/types/v2';
 import { Button } from '@/components/ui/button';
+import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
 import { Input } from '@/components/ui/input';
+import { toast } from '@/components/ui/toastStore';
 import {
   Dialog,
   DialogContent,
@@ -98,6 +100,7 @@ export function BankCashModule() {
       notes: notes.trim(),
     });
     logSecurityEvent('Account Added', `Created account ${name.trim()}`);
+    toast.success('Account Created', `${name.trim()} added to your treasury`);
     setName('');
     setBankName('');
     setLast4('');
@@ -131,6 +134,7 @@ export function BankCashModule() {
       'Account Balance Reconciled',
       `Updated ${editName.trim()} balance`
     );
+    toast.success('Account Updated', `${editName.trim()} balance updated`);
     setEditTarget(null);
   };
 
@@ -149,6 +153,7 @@ export function BankCashModule() {
       'Contra Transfer Completed',
       `Transferred ₹${transferRupees} between accounts`
     );
+    toast.success('Transfer Successful', `₹${Number(transferRupees).toLocaleString('en-IN')} transferred`);
     setTransferRupees('');
     setTransferNote('');
     setTransferOpen(false);
@@ -158,6 +163,7 @@ export function BankCashModule() {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       void navigator.clipboard.writeText(code);
       setCopiedId(id);
+      toast.info('IFSC Copied', code);
       setTimeout(() => setCopiedId(null), 1500);
     }
   };
@@ -200,55 +206,47 @@ export function BankCashModule() {
 
       {/* 3-Column Liquidity Summary Strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-900">
-            Combined Liquid Treasury
-          </p>
-          <div className="mt-2">
-            <AnimatedCurrency
-              paise={totalLiquidPaise}
-              className="text-2xl font-extrabold text-slate-900 sm:text-3xl"
-            />
-          </div>
-          <p className="mt-1 text-[11px] text-emerald-900/80">
-            Across {visibleAccounts.length} active accounts
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Combined Liquid Treasury"
+          paise={totalLiquidPaise}
+          icon={Building2}
+          accent="emerald"
+          badgeText={`${visibleAccounts.length} Accounts`}
+          badgeVariant="success"
+          subtitle="All Bank + Cash Drawer funds"
+          ratioBar={{
+            primaryPct:
+              totalLiquidPaise > 0
+                ? Math.round((bankOnlyPaise / totalLiquidPaise) * 100)
+                : 100,
+            primaryLabel: 'Bank Share',
+            secondaryLabel: `${totalLiquidPaise > 0 ? Math.round((bankOnlyPaise / totalLiquidPaise) * 100) : 0}%`,
+          }}
+        />
 
-        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
-            Total in Bank Accounts
-          </p>
-          <div className="mt-2">
-            <AnimatedCurrency
-              paise={bankOnlyPaise}
-              className="text-2xl font-extrabold text-slate-900 sm:text-3xl"
-            />
-          </div>
-          <p className="mt-1 text-[11px] text-indigo-900/80">
-            Savings, Current, OD & Digital Wallets
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Total in Bank Accounts"
+          paise={bankOnlyPaise}
+          icon={Building2}
+          accent="indigo"
+          badgeText={`${visibleAccounts.filter((a) => a.account_type !== 'cash').length} Banks`}
+          subtitle="Savings, Current & OD Accounts"
+        />
 
-        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-[#FFFBEB] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-900">
-            Physical Cash in Hand (Galla)
-          </p>
-          <div className="mt-2">
-            <AnimatedCurrency
-              paise={cashOnlyPaise}
-              className="text-2xl font-extrabold text-slate-900 sm:text-3xl"
-            />
-          </div>
-          <p className="mt-1 text-[11px] text-amber-900/80">
-            Store counter & petty cash drawers
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Physical Cash in Hand"
+          paise={cashOnlyPaise}
+          icon={Wallet}
+          accent="amber"
+          badgeText={`${visibleAccounts.filter((a) => a.account_type === 'cash').length} Cash Box`}
+          badgeVariant="warning"
+          subtitle="Store counter & petty cash drawers"
+        />
       </div>
 
       {/* Account Cards Grid */}
       {visibleAccounts.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="glass-card rounded-2xl border border-dashed border-slate-300 p-10 text-center">
           <Building2 className="mx-auto h-8 w-8 text-emerald-600" />
           <h2 className="mt-3 text-base font-bold text-slate-900">
             No bank or cash accounts in this view
@@ -270,16 +268,16 @@ export function BankCashModule() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibleAccounts.map((acc) => {
             const isCash = acc.account_type === 'cash';
-            const cardTone = isCash
-              ? 'border-amber-200 bg-gradient-to-br from-[#FFFBEB]/90 to-white'
+            const topAccent = isCash
+              ? 'border-t-2 border-t-amber-500/80'
               : acc.account_type === 'current'
-                ? 'border-indigo-200 bg-gradient-to-br from-[#EEF2FF]/90 to-white'
-                : 'border-emerald-200 bg-gradient-to-br from-[#ECFDF5]/90 to-white';
+                ? 'border-t-2 border-t-indigo-500/80'
+                : 'border-t-2 border-t-emerald-500/80';
 
             return (
               <div
                 key={acc.id}
-                className={`flex flex-col justify-between rounded-2xl border p-5 shadow-2xs transition-all hover:shadow-sm ${cardTone}`}
+                className={`glass-card glass-card-hover flex flex-col justify-between border border-slate-200/80 p-5 shadow-2xs transition-all ${topAccent}`}
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">

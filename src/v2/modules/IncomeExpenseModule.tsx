@@ -13,7 +13,10 @@ import { useV2Store } from '../store/useV2Store';
 import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { LedgerEntryType, PaymentMode, SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
+import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Input } from '@/components/ui/input';
+import { toast } from '@/components/ui/toastStore';
 import {
   Dialog,
   DialogContent,
@@ -90,6 +93,10 @@ export function IncomeExpenseModule() {
     setAmountRupees('');
     setNote('');
     setModalOpen(false);
+    toast.success(
+      entryType === 'cash_in' ? 'Cash In Recorded' : 'Expense Recorded',
+      `₹${Number(amountRupees).toLocaleString('en-IN')} added to cashbook`
+    );
   };
 
   const handleExportCsv = () => {
@@ -111,6 +118,7 @@ export function IncomeExpenseModule() {
     a.download = `record-book-cashbook-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    toast.info('Export Completed', `Downloaded CSV with ${filtered.length} entries`);
   };
 
   return (
@@ -166,68 +174,55 @@ export function IncomeExpenseModule() {
         </div>
       </div>
 
-      {/* 3-Card Summary Strip */}
+      {/* 3-Card Daylight KPI Summary Strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] to-white p-4 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-900">
-            Filtered Cash In (Income)
-          </p>
-          <p className="mt-1.5 font-mono text-2xl font-extrabold text-emerald-950">
-            +{formatINRFromPaise(totalIn, { masked: privacyMasked })}
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Filtered Inflow"
+          paise={totalIn}
+          icon={ArrowDownLeft}
+          accent="emerald"
+          badgeText="Receipts"
+          badgeVariant="success"
+          subtitle="Sales, refunds & capital inward"
+        />
 
-        <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] to-white p-4 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-rose-900">
-            Filtered Outflows & Expenses
-          </p>
-          <p className="mt-1.5 font-mono text-2xl font-extrabold text-rose-950">
-            -{formatINRFromPaise(totalOut, { masked: privacyMasked })}
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Filtered Outflow"
+          paise={totalOut}
+          icon={ArrowUpRight}
+          accent="rose"
+          badgeText="Spend"
+          badgeVariant="danger"
+          subtitle="Operating expenses & purchases"
+        />
 
-        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-4 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
-            Net Cashflow Surplus
-          </p>
-          <p
-            className={`mt-1.5 font-mono text-2xl font-extrabold ${
-              netSurplus >= 0 ? 'text-emerald-800' : 'text-rose-800'
-            }`}
-          >
-            {formatINRFromPaise(netSurplus, {
-              showSign: true,
-              masked: privacyMasked,
-            })}
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Net Cashflow Surplus"
+          paise={Math.abs(netSurplus)}
+          icon={ArrowDownLeft}
+          accent={netSurplus >= 0 ? 'indigo' : 'rose'}
+          badgeText={netSurplus >= 0 ? 'Surplus' : 'Deficit'}
+          badgeVariant={netSurplus >= 0 ? 'success' : 'danger'}
+          subtitle={netSurplus >= 0 ? 'Inflow exceeds expenses' : 'Burn exceeds revenue'}
+        />
       </div>
 
       {/* Filter & Search Toolbar */}
-      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs lg:flex-row lg:items-center">
+      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-2xs backdrop-blur-sm lg:flex-row lg:items-center">
         <div className="flex flex-wrap items-center gap-1.5">
-          {(
-            [
-              { id: 'all', label: 'All Entries' },
+          <SegmentedControl<'all' | LedgerEntryType>
+            options={[
+              { id: 'all', label: 'All', count: entries.length },
               { id: 'cash_in', label: 'Cash In' },
               { id: 'expense', label: 'Expenses' },
               { id: 'card_spend', label: 'Card Spends' },
               { id: 'transfer', label: 'Transfers' },
-            ] as { id: 'all' | LedgerEntryType; label: string }[]
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setTypeFilter(tab.id)}
-              className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                typeFilter === tab.id
-                  ? 'border-indigo-300 bg-[#EEF2FF] text-indigo-950'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+            ]}
+            value={typeFilter}
+            onChange={(val) => setTypeFilter(val)}
+            layoutId="cashbook-entry-type-segmented"
+            size="sm"
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

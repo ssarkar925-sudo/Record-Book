@@ -7,6 +7,7 @@ import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import {
   Dialog,
   DialogContent,
@@ -107,23 +108,22 @@ export function SheetsRegistersModule() {
       </div>
 
       {/* Sheet Selector Tabs */}
-      <div className="flex flex-wrap items-center gap-2">
-        {visibleSheets.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => setSelectedId(s.id)}
-            className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-colors ${
-              activeSheet?.id === s.id
-                ? 'border-sky-300 bg-[#EFF6FF] text-sky-950'
-                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            <span>{s.title}</span>
-          </button>
-        ))}
-      </div>
+      {visibleSheets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl<string>
+            options={visibleSheets.map((s) => ({
+              id: s.id,
+              label: s.title,
+              count: s.rows.length,
+              icon: FileSpreadsheet,
+            }))}
+            value={activeSheet?.id || visibleSheets[0]?.id || ''}
+            onChange={(val) => setSelectedId(val)}
+            layoutId="sheets-selector-segmented"
+            size="sm"
+          />
+        </div>
+      )}
 
       {/* Active Sheet Grid */}
       {!activeSheet ? (

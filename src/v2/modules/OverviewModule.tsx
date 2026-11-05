@@ -25,6 +25,7 @@ import {
 } from '../engine/financialEngine';
 import { AnimatedCurrency } from '../components/AnimatedCurrency';
 import { Button } from '@/components/ui/button';
+import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
 
 interface OverviewModuleProps {
   onOpenQuickEntry: (defaultType?: 'cash_in' | 'expense') => void;
@@ -189,167 +190,171 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
         </div>
       </div>
 
-      {/* 4 Primary Daylight Pastel KPI Cards */}
+      {/* 4 Executive Daylight Futuristic KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* Card 1: Total Net Worth (Soft Indigo Pastel) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] via-[#EEF2FF]/70 to-white p-5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-900">
-              Total Net Worth
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-200 bg-white text-indigo-700 shadow-2xs">
-              <Wallet className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="my-3">
-            <AnimatedCurrency
-              paise={metrics.netWorthPaise}
-              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
-            />
-          </div>
-          <div className="flex items-center justify-between border-t border-indigo-200/60 pt-2.5 text-[11px] font-medium text-indigo-950/80">
-            <span>Cash + Receivables − Liabilities</span>
-            <span className="font-semibold capitalize">{scopeFilter}</span>
-          </div>
-        </div>
+        {/* Card 1: Total Net Worth */}
+        <DaylightKpiCard
+          title="Total Net Worth"
+          paise={metrics.netWorthPaise}
+          icon={Wallet}
+          accent="indigo"
+          badgeText={scopeFilter}
+          subtitle="Assets − Liabilities"
+          ratioBar={{
+            primaryPct:
+              metrics.netWorthPaise > 0 &&
+              metrics.liquidCashPaise + metrics.totalReceivablePaise > 0
+                ? Math.round(
+                    (metrics.liquidCashPaise /
+                      (metrics.liquidCashPaise + metrics.totalReceivablePaise)) *
+                      100
+                  )
+                : 100,
+            primaryLabel: 'Liquidity Share',
+            secondaryLabel: `${metrics.netWorthPaise >= 0 ? 'Solvent' : 'Debt Risk'}`,
+          }}
+          actionLabel="Overview →"
+          onClick={() => setActiveModule('overview')}
+        />
 
-        {/* Card 2: Liquid Bank & Cash (Mint Emerald Pastel) */}
-        <button
-          type="button"
+        {/* Card 2: Bank & Cash Treasury */}
+        <DaylightKpiCard
+          title="Liquid Treasury"
+          paise={metrics.liquidCashPaise}
+          icon={Building2}
+          accent="emerald"
+          badgeText={`${accounts.length} Accounts`}
+          badgeVariant="success"
+          subtitle={`${accounts.filter((a) => a.account_type === 'cash').length} Cash · ${accounts.filter((a) => a.account_type !== 'cash').length} Bank`}
+          ratioBar={{
+            primaryPct:
+              metrics.liquidCashPaise > 0
+                ? Math.round(
+                    (accounts
+                      .filter((a) => a.account_type !== 'cash')
+                      .reduce((s, a) => s + a.balance_paise, 0) /
+                      metrics.liquidCashPaise) *
+                      100
+                  )
+                : 0,
+            primaryLabel: 'Bank Balances',
+            secondaryLabel: 'Immediate Access',
+          }}
+          actionLabel="Manage →"
           onClick={() => setActiveModule('bank')}
-          className="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] via-[#ECFDF5]/70 to-white p-5 text-left shadow-2xs transition-all hover:border-emerald-300 hover:shadow-sm"
-        >
-          <div className="flex w-full items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-900">
-              Bank & Cash Balance
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 shadow-2xs">
-              <Building2 className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="my-3">
-            <AnimatedCurrency
-              paise={metrics.liquidCashPaise}
-              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
-            />
-          </div>
-          <div className="flex w-full items-center justify-between gap-2 border-t border-emerald-200/60 pt-2.5 text-[11px] font-medium text-emerald-950/80">
-            <span className="truncate">{accounts.length} active accounts</span>
-            <span className="shrink-0 whitespace-nowrap font-bold text-emerald-800">
-              Manage →
-            </span>
-          </div>
-        </button>
+        />
 
-        {/* Card 3: Customer Receivables / Udhar (Warm Amber Pastel) */}
-        <button
-          type="button"
+        {/* Card 3: Receivables (Customer Udhar) */}
+        <DaylightKpiCard
+          title="Receivables (Udhar)"
+          paise={metrics.totalReceivablePaise}
+          icon={HandCoins}
+          accent="amber"
+          badgeText={
+            pendingDuesList.length > 0
+              ? `${pendingDuesList.length} Due`
+              : 'All Clear'
+          }
+          badgeVariant={pendingDuesList.length > 0 ? 'warning' : 'neutral'}
+          subtitle="Customer credit & pending dues"
+          ratioBar={{
+            primaryPct:
+              dues.length > 0
+                ? Math.round(
+                    ((dues.length - pendingDuesList.length) / dues.length) * 100
+                  )
+                : 100,
+            primaryLabel: 'Collection Rate',
+            secondaryLabel: `${pendingDuesList.length} Pending`,
+          }}
+          actionLabel="Collect →"
           onClick={() => setActiveModule('dues')}
-          className="flex flex-col justify-between rounded-2xl border border-amber-200 bg-gradient-to-br from-[#FFFBEB] via-[#FFFBEB]/70 to-white p-5 text-left shadow-2xs transition-all hover:border-amber-300 hover:shadow-sm"
-        >
-          <div className="flex w-full items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-900">
-              To Receive (Udhar)
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-700 shadow-2xs">
-              <HandCoins className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="my-3">
-            <AnimatedCurrency
-              paise={metrics.totalReceivablePaise}
-              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
-            />
-          </div>
-          <div className="flex w-full items-center justify-between gap-2 border-t border-amber-200/60 pt-2.5 text-[11px] font-medium text-amber-950/80">
-            <span className="truncate">Pending customer collections</span>
-            <span className="shrink-0 whitespace-nowrap font-bold text-amber-900">
-              Collect →
-            </span>
-          </div>
-        </button>
+        />
 
-        {/* Card 4: Payables & Credit Card Dues (Blush Coral Pastel) */}
-        <button
-          type="button"
+        {/* Card 4: Payables & Card Liabilities */}
+        <DaylightKpiCard
+          title="Payables & Card Dues"
+          paise={metrics.totalPayablePaise + metrics.cardUtilizedPaise}
+          icon={CreditCard}
+          accent="rose"
+          badgeText={`${cardUtilizationPct}% Used`}
+          badgeVariant={
+            cardUtilizationPct > 70
+              ? 'danger'
+              : cardUtilizationPct > 30
+                ? 'warning'
+                : 'neutral'
+          }
+          subtitle={`Cards: ${formatINRFromPaise(metrics.cardUtilizedPaise, { masked: privacyMasked })}`}
+          ratioBar={{
+            primaryPct: cardUtilizationPct,
+            primaryLabel: 'Credit Line Used',
+            secondaryLabel:
+              cardUtilizationPct > 70 ? 'High' : 'Healthy Guardrail',
+          }}
+          actionLabel="Inspect →"
           onClick={() => setActiveModule('cards')}
-          className="flex flex-col justify-between rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] via-[#FFF1F2]/70 to-white p-5 text-left shadow-2xs transition-all hover:border-rose-300 hover:shadow-sm"
-        >
-          <div className="flex w-full items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-900">
-              Payables & Card Dues
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-white text-rose-700 shadow-2xs">
-              <CreditCard className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="my-3">
-            <AnimatedCurrency
-              paise={metrics.totalPayablePaise + metrics.cardUtilizedPaise}
-              className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
-            />
-          </div>
-          <div className="flex w-full items-center justify-between gap-2 border-t border-rose-200/60 pt-2.5 text-[11px] font-medium text-rose-950/80">
-            <span className="truncate">
-              Cards:{' '}
-              {formatINRFromPaise(metrics.cardUtilizedPaise, {
-                masked: privacyMasked,
-              })}{' '}
-              · Bills:{' '}
-              {formatINRFromPaise(metrics.totalPayablePaise, {
-                masked: privacyMasked,
-              })}
-            </span>
-            <span className="shrink-0 whitespace-nowrap font-bold text-rose-800">
-              Inspect →
-            </span>
-          </div>
-        </button>
+        />
       </div>
 
-      {/* Executive Cashflow Velocity & Health Bar */}
-      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs md:grid-cols-3">
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-[#ECFDF5]/60 p-3.5">
+      {/* Executive Cashflow Velocity & Treasury Gauge */}
+      <div className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-2xs backdrop-blur-sm md:grid-cols-3">
+        <div className="glass-card flex items-center justify-between border-t-2 border-t-emerald-500/80 p-4 shadow-2xs transition-transform hover:-translate-y-0.5">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-900">
-              Total Cash Inflow
-            </p>
-            <p className="mt-1 font-mono text-lg font-extrabold text-emerald-950">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 pulse-dot" />
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Total Inflow
+              </p>
+            </div>
+            <p className="mt-1.5 font-mono text-xl font-extrabold text-emerald-700">
               {formatINRFromPaise(metrics.totalIncomePaise, {
                 showSign: true,
                 masked: privacyMasked,
               })}
             </p>
+            <p className="mt-0.5 text-[10px] text-slate-400">
+              Verified Revenue & Receipts
+            </p>
           </div>
-          <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs">
-            Revenue
+          <span className="rounded-lg border border-emerald-200/80 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 shadow-2xs">
+            Inflow
           </span>
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-rose-200/80 bg-[#FFF1F2]/60 p-3.5">
+        <div className="glass-card flex items-center justify-between border-t-2 border-t-rose-500/80 p-4 shadow-2xs transition-transform hover:-translate-y-0.5">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-rose-900">
-              Total Outflow & Spend
-            </p>
-            <p className="mt-1 font-mono text-lg font-extrabold text-rose-950">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Total Outflow & Spend
+              </p>
+            </div>
+            <p className="mt-1.5 font-mono text-xl font-extrabold text-rose-700">
               {formatINRFromPaise(metrics.totalExpensePaise, {
                 masked: privacyMasked,
               })}
             </p>
+            <p className="mt-0.5 text-[10px] text-slate-400">
+              Ledger Expenses & Card Spends
+            </p>
           </div>
-          <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-rose-800 shadow-2xs">
-            Outflow
+          <span className="rounded-lg border border-rose-200/80 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-800 shadow-2xs">
+            Burn
           </span>
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-sky-200/80 bg-[#EFF6FF]/60 p-3.5">
+        <div className="glass-card flex items-center justify-between border-t-2 border-t-indigo-500/80 p-4 shadow-2xs transition-transform hover:-translate-y-0.5">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-sky-900">
-              Net Operating Surplus
-            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Operating Surplus
+              </p>
+            </div>
             <p
-              className={`mt-1 font-mono text-lg font-extrabold ${
-                netSurplusPaise >= 0 ? 'text-emerald-800' : 'text-rose-800'
+              className={`mt-1.5 font-mono text-xl font-extrabold ${
+                netSurplusPaise >= 0 ? 'text-indigo-950' : 'text-rose-700'
               }`}
             >
               {formatINRFromPaise(netSurplusPaise, {
@@ -357,9 +362,12 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
                 masked: privacyMasked,
               })}
             </p>
+            <p className="mt-0.5 text-[10px] text-slate-400">
+              Net Capital Flow Position
+            </p>
           </div>
-          <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-sky-900 shadow-2xs">
-            Card Use: {cardUtilizationPct}%
+          <span className="rounded-lg border border-indigo-200/80 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-900 shadow-2xs">
+            {netSurplusPaise >= 0 ? 'Positive Margin' : 'Deficit'}
           </span>
         </div>
       </div>
@@ -637,14 +645,16 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
             <button
               type="button"
               onClick={() => setActiveModule('notes')}
-              className="flex flex-col justify-between rounded-2xl border border-amber-200 bg-[#FFFBEB]/75 p-4 text-left transition-all hover:border-amber-300"
+              className="glass-card glass-card-hover group flex flex-col justify-between p-4 text-left border border-slate-200/80 hover:border-amber-300/80"
             >
-              <StickyNote className="h-4 w-4 text-amber-800" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-200/80 bg-amber-50 text-amber-700 shadow-2xs transition-transform group-hover:scale-105">
+                <StickyNote className="h-4 w-4" />
+              </div>
               <div className="mt-3">
                 <p className="text-xs font-bold text-slate-900">
                   Smart Notes ({notes.filter((n) => !n.is_trashed).length})
                 </p>
-                <p className="mt-0.5 text-[11px] text-slate-600">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   Auto-summed checklists
                 </p>
               </div>
@@ -653,14 +663,16 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
             <button
               type="button"
               onClick={() => setActiveModule('sheets')}
-              className="flex flex-col justify-between rounded-2xl border border-sky-200 bg-[#EFF6FF]/75 p-4 text-left transition-all hover:border-sky-300"
+              className="glass-card glass-card-hover group flex flex-col justify-between p-4 text-left border border-slate-200/80 hover:border-sky-300/80"
             >
-              <FileSpreadsheet className="h-4 w-4 text-sky-800" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-sky-200/80 bg-sky-50 text-sky-700 shadow-2xs transition-transform group-hover:scale-105">
+                <FileSpreadsheet className="h-4 w-4" />
+              </div>
               <div className="mt-3">
                 <p className="text-xs font-bold text-slate-900">
                   Registers ({sheets.length})
                 </p>
-                <p className="mt-0.5 text-[11px] text-slate-600">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   Custom GST & stock grids
                 </p>
               </div>
@@ -669,14 +681,16 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
             <button
               type="button"
               onClick={() => setActiveModule('vault')}
-              className="flex flex-col justify-between rounded-2xl border border-indigo-200 bg-[#EEF2FF]/75 p-4 text-left transition-all hover:border-indigo-300"
+              className="glass-card glass-card-hover group flex flex-col justify-between p-4 text-left border border-slate-200/80 hover:border-indigo-300/80"
             >
-              <Lock className="h-4 w-4 text-indigo-800" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 text-indigo-700 shadow-2xs transition-transform group-hover:scale-105">
+                <Lock className="h-4 w-4" />
+              </div>
               <div className="mt-3">
                 <p className="text-xs font-bold text-slate-900">
                   Encrypted Vault ({vaultItems.length})
                 </p>
-                <p className="mt-0.5 text-[11px] text-slate-600">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   AES-256 PINs & passwords
                 </p>
               </div>
@@ -685,14 +699,16 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
             <button
               type="button"
               onClick={() => setActiveModule('reports')}
-              className="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-[#ECFDF5]/75 p-4 text-left transition-all hover:border-emerald-300"
+              className="glass-card glass-card-hover group flex flex-col justify-between p-4 text-left border border-slate-200/80 hover:border-emerald-300/80"
             >
-              <ShieldCheck className="h-4 w-4 text-emerald-800" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-200/80 bg-emerald-50 text-emerald-700 shadow-2xs transition-transform group-hover:scale-105">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
               <div className="mt-3">
                 <p className="text-xs font-bold text-slate-900">
                   Security & P&L
                 </p>
-                <p className="mt-0.5 text-[11px] text-slate-600">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   PIN Lock, Audit & Backup
                 </p>
               </div>

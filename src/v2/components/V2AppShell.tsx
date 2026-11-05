@@ -48,91 +48,127 @@ import { SheetsRegistersModule } from '@/v2/modules/SheetsRegistersModule';
 import { DailyNotesModule } from '@/v2/modules/DailyNotesModule';
 import { EncryptedVaultModule } from '@/v2/modules/EncryptedVaultModule';
 import { ReportsSyncDocsModule } from '@/v2/modules/ReportsSyncDocsModule';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { CommandPalette } from '@/components/ui/CommandPalette';
+import { DaylightToastContainer } from '@/components/ui/DaylightToast';
+import { toast } from '@/components/ui/toastStore';
 
-interface NavModuleItem {
+export interface NavModuleItem {
   id: ModuleId;
   label: string;
   shortLabel: string;
   icon: React.ComponentType<{ className?: string }>;
-  activeStyle: string;
+  accentColor: 'indigo' | 'emerald' | 'amber' | 'rose' | 'sky' | 'teal';
+  shortcutKey: string;
 }
 
-const ALL_MODULES: NavModuleItem[] = [
+export interface NavSection {
+  title: string;
+  items: NavModuleItem[];
+}
+
+export const NAV_SECTIONS: NavSection[] = [
   {
-    id: 'overview',
-    label: 'Executive Dashboard',
-    shortLabel: 'Dashboard',
-    icon: LayoutDashboard,
-    activeStyle: 'border-indigo-300 bg-[#EEF2FF] text-indigo-950 shadow-2xs',
+    title: 'Treasury & Liquidity',
+    items: [
+      {
+        id: 'overview',
+        label: 'Executive Command',
+        shortLabel: 'Overview',
+        icon: LayoutDashboard,
+        accentColor: 'indigo',
+        shortcutKey: '1',
+      },
+      {
+        id: 'bank',
+        label: 'Bank & Cash Accounts',
+        shortLabel: 'Bank',
+        icon: Building2,
+        accentColor: 'emerald',
+        shortcutKey: '2',
+      },
+      {
+        id: 'expenses',
+        label: 'Cashbook & Expenses',
+        shortLabel: 'Cashbook',
+        icon: ArrowLeftRight,
+        accentColor: 'sky',
+        shortcutKey: '3',
+      },
+    ],
   },
   {
-    id: 'notes',
-    label: 'Smart Notes & Tasks',
-    shortLabel: 'Notes',
-    icon: StickyNote,
-    activeStyle: 'border-amber-300 bg-[#FFFBEB] text-amber-950 shadow-2xs',
+    title: 'Commercial Operations',
+    items: [
+      {
+        id: 'dues',
+        label: 'Customer & Vendor Udhar',
+        shortLabel: 'Dues',
+        icon: HandCoins,
+        accentColor: 'amber',
+        shortcutKey: '4',
+      },
+      {
+        id: 'cards',
+        label: 'Credit Cards & Limits',
+        shortLabel: 'Cards',
+        icon: CreditCard,
+        accentColor: 'rose',
+        shortcutKey: '5',
+      },
+      {
+        id: 'sheets',
+        label: 'Business Registers',
+        shortLabel: 'Registers',
+        icon: FileSpreadsheet,
+        accentColor: 'teal',
+        shortcutKey: '6',
+      },
+    ],
   },
   {
-    id: 'cards',
-    label: 'Credit Cards',
-    shortLabel: 'Cards',
-    icon: CreditCard,
-    activeStyle: 'border-rose-300 bg-[#FFF1F2] text-rose-950 shadow-2xs',
-  },
-  {
-    id: 'dues',
-    label: 'Customer & Vendor Dues',
-    shortLabel: 'Dues',
-    icon: HandCoins,
-    activeStyle: 'border-amber-300 bg-[#FFFBEB] text-amber-950 shadow-2xs',
-  },
-  {
-    id: 'bank',
-    label: 'Bank & Cash Accounts',
-    shortLabel: 'Bank',
-    icon: Building2,
-    activeStyle: 'border-emerald-300 bg-[#ECFDF5] text-emerald-950 shadow-2xs',
-  },
-  {
-    id: 'expenses',
-    label: 'Cashbook & Expenses',
-    shortLabel: 'Cashbook',
-    icon: ArrowLeftRight,
-    activeStyle: 'border-sky-300 bg-[#EFF6FF] text-sky-950 shadow-2xs',
-  },
-  {
-    id: 'sheets',
-    label: 'Business Registers',
-    shortLabel: 'Registers',
-    icon: FileSpreadsheet,
-    activeStyle: 'border-sky-300 bg-[#EFF6FF] text-sky-950 shadow-2xs',
-  },
-  {
-    id: 'vault',
-    label: 'Password & PIN Vault',
-    shortLabel: 'Vault',
-    icon: Lock,
-    activeStyle: 'border-indigo-300 bg-[#EEF2FF] text-indigo-950 shadow-2xs',
-  },
-  {
-    id: 'reports',
-    label: 'Reports, Security & Backup',
-    shortLabel: 'Security',
-    icon: ShieldCheck,
-    activeStyle: 'border-emerald-300 bg-[#ECFDF5] text-emerald-950 shadow-2xs',
+    title: 'Productivity & Vault',
+    items: [
+      {
+        id: 'notes',
+        label: 'Daily Notes & Rupee Tasks',
+        shortLabel: 'Notes',
+        icon: StickyNote,
+        accentColor: 'amber',
+        shortcutKey: '7',
+      },
+      {
+        id: 'vault',
+        label: 'Zero-Knowledge Vault',
+        shortLabel: 'Vault',
+        icon: Lock,
+        accentColor: 'indigo',
+        shortcutKey: '8',
+      },
+      {
+        id: 'reports',
+        label: 'Security, Audit & Sync',
+        shortLabel: 'Security',
+        icon: ShieldCheck,
+        accentColor: 'emerald',
+        shortcutKey: '9',
+      },
+    ],
   },
 ];
 
-// Mobile Bottom Bar Priority Order: Notes, Credit Card, Dues, Bank, Expenses, More
+const ALL_MODULES = NAV_SECTIONS.flatMap((s) => s.items);
+
+// Mobile Bottom Bar Priority Order: Overview, Bank, Expenses, Dues, Cards, More
 const MOBILE_PRIMARY_IDS: ModuleId[] = [
-  'notes',
-  'cards',
-  'dues',
+  'overview',
   'bank',
   'expenses',
+  'dues',
+  'cards',
 ];
 
-const MOBILE_MORE_IDS: ModuleId[] = ['overview', 'sheets', 'vault', 'reports'];
+const MOBILE_MORE_IDS: ModuleId[] = ['notes', 'sheets', 'vault', 'reports'];
 
 export function V2AppShell() {
   const {
@@ -143,6 +179,7 @@ export function V2AppShell() {
     entries,
     dues,
     cards,
+    notes,
     userEmail,
     syncStatus,
     privacyMasked,
@@ -161,6 +198,7 @@ export function V2AppShell() {
   } = useV2Store();
 
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickType, setQuickType] = useState<'cash_in' | 'expense'>('expense');
   const [quickAmount, setQuickAmount] = useState('');
@@ -224,6 +262,10 @@ export function V2AppShell() {
     setQuickAmount('');
     setQuickNote('');
     setQuickOpen(false);
+    toast.success(
+      quickType === 'cash_in' ? 'Payment Received' : 'Expense Recorded',
+      `₹${(paise / 100).toLocaleString('en-IN')} added to financial ledger`
+    );
   };
 
   const handleLockButtonClick = () => {
@@ -231,6 +273,7 @@ export function V2AppShell() {
       setUnlockPinInput('');
       setUnlockError(false);
       lockApp();
+      toast.info('Record Book Locked', 'Enter security PIN to resume');
     } else {
       setNewPinValue('');
       setPinSetupOpen(true);
@@ -244,6 +287,7 @@ export function V2AppShell() {
     setAppSecurityPin(cleaned);
     setNewPinValue('');
     setPinSetupOpen(false);
+    toast.success('Security PIN Set', 'App locked with 4-digit PIN protection');
   };
 
   const handleDigitPress = (digit: string) => {
@@ -258,6 +302,7 @@ export function V2AppShell() {
         setTimeout(() => setUnlockPinInput(''), 350);
       } else {
         setUnlockPinInput('');
+        toast.success('Access Granted', 'Welcome back to Record Book');
       }
     }
   };
@@ -278,6 +323,37 @@ export function V2AppShell() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   });
+
+  // Global Alt+1 to Alt+9 Desktop Fast Module Switcher
+  useEffect(() => {
+    if (isAppLocked) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement as HTMLElement)?.tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) return;
+      if (e.altKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const idx = parseInt(e.key, 10) - 1;
+        if (ALL_MODULES[idx]) {
+          setActiveModule(ALL_MODULES[idx].id);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isAppLocked, setActiveModule]);
+
+  // Global Ctrl+K / Cmd+K Spotlight Command Palette Listener
+  useEffect(() => {
+    if (isAppLocked) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isAppLocked]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] antialiased">
@@ -394,40 +470,31 @@ export function V2AppShell() {
 
           {/* Zone 2: Sphere Scope Selector + Global Search */}
           <div className="hidden items-center gap-3 md:flex">
-            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100/80 p-1">
-              {(
-                [
-                  { id: 'all', label: 'All' },
-                  { id: 'business', label: 'Business' },
-                  { id: 'personal', label: 'Personal' },
-                  { id: 'family', label: 'Family' },
-                ] as { id: 'all' | SphereScope; label: string }[]
-              ).map((sp) => (
-                <button
-                  key={sp.id}
-                  type="button"
-                  onClick={() => setScopeFilter(sp.id)}
-                  className={`rounded-lg px-3 py-1 text-xs font-semibold transition-all ${
-                    scopeFilter === sp.id
-                      ? 'bg-white text-slate-900 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {sp.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl<'all' | SphereScope>
+              options={[
+                { id: 'all', label: 'All' },
+                { id: 'business', label: 'Business' },
+                { id: 'personal', label: 'Personal' },
+                { id: 'family', label: 'Family' },
+              ]}
+              value={scopeFilter}
+              onChange={(val) => setScopeFilter(val)}
+              layoutId="header-scope-selector"
+              size="sm"
+            />
 
-            <div className="relative w-52 lg:w-64">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search transactions, parties, notes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/90 pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setCommandOpen(true)}
+              className="group relative flex h-9 w-52 lg:w-64 items-center rounded-xl border border-slate-200/90 bg-slate-50/90 px-3 text-xs text-slate-500 shadow-2xs transition-all hover:border-indigo-300 hover:bg-white text-left"
+              title="Open Spotlight Command Palette (Ctrl+K / Cmd+K)"
+            >
+              <Search className="mr-2 h-3.5 w-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
+              <span className="truncate">Search records or actions...</span>
+              <kbd className="pointer-events-none ml-auto rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-400 shadow-2xs group-hover:text-slate-600 shrink-0">
+                Ctrl+K
+              </kbd>
+            </button>
           </div>
 
           {/* Zone 3: Privacy Mask Toggle + Security Lock + Cloud Sync + Primary CTA */}
@@ -531,77 +598,128 @@ export function V2AppShell() {
       {/* Main Layout Container */}
       <div className="mx-auto flex max-w-[1600px]">
         {/* Desktop Left Sidebar */}
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 flex-col justify-between border-r border-slate-200/90 bg-white p-4 lg:flex">
-          <div className="space-y-4 overflow-y-auto">
-            {/* Daylight Pastel Mini Net Worth Summary */}
-            <div className="rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-[#EEF2FF] to-white p-4 shadow-2xs">
+        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-68 shrink-0 flex-col justify-between border-r border-slate-200/80 bg-white/95 p-4 backdrop-blur-sm lg:flex overflow-y-auto">
+          <div className="space-y-4">
+            {/* Daylight Mini Net Worth Summary */}
+            <div className="glass-card border border-indigo-100/90 bg-gradient-to-b from-indigo-50/50 via-white to-white p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900">
                   Total Liquid Cash
-                </p>
-                <span className="rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-indigo-700">
+                </span>
+                <span className="rounded-md border border-indigo-200/60 bg-white px-1.5 py-0.5 text-[10px] font-bold capitalize text-indigo-700 shadow-2xs">
                   {scopeFilter}
                 </span>
               </div>
-              <p className="mt-1.5 font-mono text-lg font-extrabold tabular-nums text-slate-900">
+              <p className="mt-1 font-mono text-lg font-extrabold tracking-tight tabular-nums text-slate-900">
                 {formatINRFromPaise(metrics.liquidCashPaise, {
                   masked: privacyMasked,
                 })}
               </p>
-              <p className="mt-0.5 text-[11px] font-medium text-slate-600">
-                Net Worth:{' '}
+              <div className="mt-1 flex items-center justify-between text-[11px] font-medium text-slate-500">
+                <span>Net Worth:</span>
                 <span className="font-mono font-semibold text-slate-800">
                   {formatINRFromPaise(metrics.netWorthPaise, {
                     masked: privacyMasked,
                   })}
                 </span>
-              </p>
+              </div>
             </div>
 
-            {/* 9 Module Navigation List */}
-            <nav aria-label="Workspace Modules" className="space-y-1">
-              {ALL_MODULES.map((mod) => {
-                const Icon = mod.icon;
-                const isActive = activeModule === mod.id;
-                return (
-                  <button
-                    key={mod.id}
-                    type="button"
-                    onClick={() => setActiveModule(mod.id)}
-                    className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left text-xs font-semibold transition-all ${
-                      isActive
-                        ? mod.activeStyle
-                        : 'border-transparent text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2.5 whitespace-nowrap">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{mod.label}</span>
-                    </span>
-                  </button>
-                );
-              })}
+            {/* 3-Tier Categorized Navigation */}
+            <nav aria-label="Workspace Modules" className="space-y-4">
+              {NAV_SECTIONS.map((section) => (
+                <div key={section.title} className="space-y-1">
+                  <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    {section.title}
+                  </p>
+                  <div className="space-y-0.5">
+                    {section.items.map((mod) => {
+                      const Icon = mod.icon;
+                      const isActive = activeModule === mod.id;
+
+                      let badgeCount: number | null = null;
+                      if (mod.id === 'dues') {
+                        badgeCount = dues.filter(
+                          (d) =>
+                            (scopeFilter === 'all' || d.scope === scopeFilter) &&
+                            d.status !== 'settled'
+                        ).length;
+                      } else if (mod.id === 'notes') {
+                        badgeCount = notes.filter(
+                          (n) => !n.is_trashed && !n.is_archived
+                        ).length;
+                      }
+
+                      return (
+                        <button
+                          key={mod.id}
+                          type="button"
+                          onClick={() => setActiveModule(mod.id)}
+                          className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold transition-all duration-150 ${
+                            isActive
+                              ? 'border border-indigo-200/90 bg-indigo-50/90 text-indigo-900 shadow-2xs'
+                              : 'border border-transparent text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2.5 min-w-0">
+                            <Icon
+                              className={`h-4 w-4 shrink-0 transition-colors ${
+                                isActive
+                                  ? 'text-indigo-600'
+                                  : 'text-slate-400 group-hover:text-slate-600'
+                              }`}
+                            />
+                            <span className="truncate">{mod.label}</span>
+                          </span>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {badgeCount !== null && badgeCount > 0 && (
+                              <span
+                                className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                                  mod.id === 'dues'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-slate-200/80 text-slate-600'
+                                }`}
+                              >
+                                {badgeCount}
+                              </span>
+                            )}
+                            <span className="hidden font-mono text-[10px] text-slate-400 group-hover:inline">
+                              Alt+{mod.shortcutKey}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </nav>
           </div>
 
           {/* Security & Privacy Posture Card */}
-          <div className="rounded-2xl border border-emerald-200 bg-[#ECFDF5]/70 p-3.5">
+          <div className="glass-card mt-4 border border-emerald-200/80 bg-[#ECFDF5]/50 p-3.5 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-emerald-950">
-                Security & Protection
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-950">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    userEmail ? 'bg-emerald-500' : 'bg-slate-400'
+                  } pulse-dot`}
+                />
+                Security & Sync
               </span>
               <ShieldCheck className="h-4 w-4 text-emerald-700" />
             </div>
             <p className="mt-1 text-[11px] text-emerald-900/80">
               {appPinHash
-                ? '4-Digit App PIN Active · AES-256 Vault'
+                ? '4-Digit PIN Lock Active · AES-256'
                 : 'AES-256 Vault Active · PIN Optional'}
             </p>
             <div className="mt-2.5 flex gap-1.5">
               <button
                 type="button"
                 onClick={handleLockButtonClick}
-                className="flex-1 rounded-lg border border-emerald-300 bg-white py-1.5 text-[11px] font-semibold text-emerald-900 transition-colors hover:bg-emerald-50"
+                className="flex-1 rounded-lg border border-emerald-300/80 bg-white py-1.5 text-[11px] font-semibold text-emerald-900 shadow-2xs transition-colors hover:bg-emerald-50"
               >
                 {appPinHash ? 'Lock Now' : 'Set App PIN'}
               </button>
@@ -748,7 +866,7 @@ export function V2AppShell() {
                     }}
                     className={`flex items-center gap-2.5 rounded-xl border p-3 text-left text-xs font-bold ${
                       isActive
-                        ? item.activeStyle
+                        ? 'border-indigo-200 bg-indigo-50/90 text-indigo-900 shadow-2xs'
                         : 'border-slate-200 bg-slate-50 text-slate-800'
                     }`}
                   >
@@ -948,6 +1066,16 @@ export function V2AppShell() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Spotlight Command Center (Ctrl+K / Cmd+K) */}
+      <CommandPalette
+        isOpen={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        onOpenQuickEntry={handleOpenQuickEntry}
+      />
+
+      {/* Modern Daylight Toast Feedback System */}
+      <DaylightToastContainer />
     </div>
   );
 }

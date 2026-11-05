@@ -13,6 +13,8 @@ import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { CardNetwork, SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
+import { toast } from '@/components/ui/toastStore';
 import {
   Dialog,
   DialogContent,
@@ -97,6 +99,7 @@ export function CreditCardsModule() {
     setLimitRupees('');
     setUtilizedRupees('0');
     setAddOpen(false);
+    toast.success('Credit Card Added', `${cardName.trim()} registered`);
   };
 
   const handleSpend = async (e: React.FormEvent) => {
@@ -114,6 +117,10 @@ export function CreditCardsModule() {
     setSpendCardId(null);
     setSpendRupees('');
     setSpendNote('');
+    toast.success(
+      'Card Spend Recorded',
+      `₹${Number(spendRupees).toLocaleString('en-IN')} added to outstanding bill`
+    );
   };
 
   const handlePayBill = async (e: React.FormEvent) => {
@@ -129,6 +136,10 @@ export function CreditCardsModule() {
     });
     setBillCardId(null);
     setBillRupees('');
+    toast.success(
+      'Card Bill Paid',
+      `₹${Number(billRupees).toLocaleString('en-IN')} paid from bank account`
+    );
   };
 
   return (
@@ -153,48 +164,46 @@ export function CreditCardsModule() {
         </Button>
       </div>
 
-      {/* 3-Card Credit Summary Strip */}
+      {/* 3-Card Daylight KPI Summary Strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-rose-900">
-            Current Statement Utilized
-          </p>
-          <p className="mt-2 font-mono text-2xl font-extrabold text-rose-950">
-            {formatINRFromPaise(totalUtilizedPaise, { masked: privacyMasked })}
-          </p>
-          <p className="mt-1 text-[11px] text-rose-900/80">
-            Overall utilization: {overallUtilPct}%
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Current Card Liabilities"
+          paise={totalUtilizedPaise}
+          icon={CreditCard}
+          accent="rose"
+          badgeText={`${overallUtilPct}% Used`}
+          badgeVariant={overallUtilPct > 70 ? 'danger' : overallUtilPct > 30 ? 'warning' : 'neutral'}
+          subtitle={`Across ${visibleCards.length} credit lines`}
+          ratioBar={{
+            primaryPct: overallUtilPct,
+            primaryLabel: 'Utilization Ratio',
+            secondaryLabel: overallUtilPct > 70 ? 'High Debt' : 'Healthy Guardrail',
+          }}
+        />
 
-        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF5] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-900">
-            Available Credit Headroom
-          </p>
-          <p className="mt-2 font-mono text-2xl font-extrabold text-emerald-950">
-            {formatINRFromPaise(totalAvailablePaise, { masked: privacyMasked })}
-          </p>
-          <p className="mt-1 text-[11px] text-emerald-900/80">
-            Unutilized spending power
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Available Credit Headroom"
+          paise={totalAvailablePaise}
+          icon={CreditCard}
+          accent="emerald"
+          badgeText="Spending Power"
+          badgeVariant="success"
+          subtitle="Unutilized sanctioned credit"
+        />
 
-        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#EEF2FF] to-white p-5 shadow-2xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-900">
-            Combined Sanctioned Limit
-          </p>
-          <p className="mt-2 font-mono text-2xl font-extrabold text-slate-900">
-            {formatINRFromPaise(totalLimitPaise, { masked: privacyMasked })}
-          </p>
-          <p className="mt-1 text-[11px] text-indigo-900/80">
-            Across {visibleCards.length} active credit cards
-          </p>
-        </div>
+        <DaylightKpiCard
+          title="Total Sanctioned Limit"
+          paise={totalLimitPaise}
+          icon={CreditCard}
+          accent="indigo"
+          badgeText={`${visibleCards.length} Cards`}
+          subtitle="Combined bank credit lines"
+        />
       </div>
 
       {/* Cards Grid */}
       {visibleCards.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="glass-card rounded-2xl border border-dashed border-slate-300 p-10 text-center">
           <CreditCard className="mx-auto h-8 w-8 text-rose-500" />
           <h2 className="mt-3 text-base font-bold text-slate-900">
             No credit cards configured
@@ -229,7 +238,7 @@ export function CreditCardsModule() {
             return (
               <div
                 key={card.id}
-                className="flex flex-col justify-between rounded-2xl border border-rose-200 bg-gradient-to-br from-[#FFF1F2] via-white to-[#EEF2FF]/60 p-6 shadow-2xs"
+                className="glass-card glass-card-hover flex flex-col justify-between border border-slate-200/80 border-t-2 border-t-rose-500/80 p-6 shadow-2xs transition-all hover:border-rose-300/80"
               >
                 <div>
                   <div className="flex items-start justify-between">
