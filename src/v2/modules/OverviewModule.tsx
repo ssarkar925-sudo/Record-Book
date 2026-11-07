@@ -26,13 +26,13 @@ import {
 import { AnimatedCurrency } from '../components/AnimatedCurrency';
 import { Button } from '@/components/ui/button';
 import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
+import { TabularNums } from '@/components/ui/TabularNums';
 import {
   NetWorthTrendChart,
   ExpenseBreakdownChart,
   CashFlowComparisonChart,
   CardUtilizationChart,
   KPIStrip,
-  TabularNums,
 } from '../components/Charts';
 
 interface OverviewModuleProps {
