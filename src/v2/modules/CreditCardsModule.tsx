@@ -8,20 +8,14 @@ import {
   ShoppingBag,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { CardNetwork, SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
 import { toast } from '@/components/ui/toastStore';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { PremiumModal } from '@/components/ui/PremiumModal';
 
 export function CreditCardsModule() {
   const {
@@ -357,273 +351,264 @@ export function CreditCardsModule() {
         </div>
       )}
 
-      {/* Add Card Modal */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Credit Card</DialogTitle>
-            <DialogDescription>
-              Configure credit limit, statement day, and due day.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAddCard} className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Card Name *
-                </label>
-                <Input
-                  required
-                  placeholder="e.g. HDFC Infinia / ICICI Amazon Pay"
-                  value={cardName}
-                  onChange={(e) => setCardName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Issuing Bank
-                </label>
-                <Input
-                  placeholder="HDFC Bank"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Last 4 Digits
-                </label>
-                <Input
-                  maxLength={4}
-                  placeholder="4821"
-                  value={last4}
-                  onChange={(e) => setLast4(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Network
-                </label>
-                <select
-                  value={network}
-                  onChange={(e) => setNetwork(e.target.value as CardNetwork)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="visa">Visa</option>
-                  <option value="mastercard">Mastercard</option>
-                  <option value="rupay">RuPay</option>
-                  <option value="amex">Amex</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere
-                </label>
-                <select
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value as SphereScope)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="business">Business</option>
-                  <option value="personal">Personal</option>
-                  <option value="family">Family</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Total Credit Limit (₹) *
-                </label>
-                <Input
-                  type="number"
-                  required
-                  placeholder="300000"
-                  value={limitRupees}
-                  onChange={(e) => setLimitRupees(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Current Unbilled / Utilized (₹)
-                </label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={utilizedRupees}
-                  onChange={(e) => setUtilizedRupees(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Statement Day (1-28)
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={28}
-                  value={statementDay}
-                  onChange={(e) => setStatementDay(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Payment Due Day (1-28)
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={28}
-                  value={dueDay}
-                  onChange={(e) => setDueDay(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAddOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="rose">
-                Save Credit Card
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Record Card Spend Modal */}
-      <Dialog
-        open={Boolean(spendCardId)}
-        onOpenChange={(o) => !o && setSpendCardId(null)}
+      {/* Add Card Modal - Premium */}
+      <PremiumModal
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Add Credit Card"
+        description="Configure credit limit, statement day, and due day."
+        size="md"
+        variant="dialog"
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Credit Card Spend</DialogTitle>
-            <DialogDescription>
-              Increases card utilization and logs the purchase in your Cashbook.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSpend} className="space-y-4">
+        <form onSubmit={handleAddCard} className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Purchase Amount (₹) *
+                Card Name *
               </label>
               <Input
-                type="number"
-                step="0.01"
                 required
-                placeholder="4500"
-                value={spendRupees}
-                onChange={(e) => setSpendRupees(e.target.value)}
+                placeholder="e.g. HDFC Infinia / ICICI Amazon Pay"
+                value={cardName}
+                onChange={(e) => setCardName(e.target.value)}
               />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Category
+                Issuing Bank
               </label>
               <Input
-                value={spendCategory}
-                onChange={(e) => setSpendCategory(e.target.value)}
+                placeholder="HDFC Bank"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
               />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Merchant / Note
-              </label>
-              <Input
-                placeholder="AWS Cloud / Flight Ticket / Vendor Supplies"
-                value={spendNote}
-                onChange={(e) => setSpendNote(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setSpendCardId(null)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="rose">
-                Record Spend
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
 
-      {/* Pay Card Bill Modal */}
-      <Dialog
-        open={Boolean(billCardId)}
-        onOpenChange={(o) => !o && setBillCardId(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Settle Credit Card Statement Bill</DialogTitle>
-            <DialogDescription>
-              Debits your selected bank account and restores your card credit limit.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handlePayBill} className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Bill Payment Amount (₹) *
+                Last 4 Digits
               </label>
               <Input
-                type="number"
-                step="0.01"
-                required
-                value={billRupees}
-                onChange={(e) => setBillRupees(e.target.value)}
+                maxLength={4}
+                placeholder="4821"
+                value={last4}
+                onChange={(e) => setLast4(e.target.value)}
               />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Pay From Bank Account
+                Network
               </label>
               <select
-                value={billFromAccountId}
-                onChange={(e) => setBillFromAccountId(e.target.value)}
+                value={network}
+                onChange={(e) => setNetwork(e.target.value as CardNetwork)}
                 className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} (
-                    {formatINRFromPaise(a.balance_paise, {
-                      masked: privacyMasked,
-                    })}
-                    )
-                  </option>
-                ))}
+                <option value="visa">Visa</option>
+                <option value="mastercard">Mastercard</option>
+                <option value="rupay">RuPay</option>
+                <option value="amex">Amex</option>
               </select>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setBillCardId(null)}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Sphere
+              </label>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as SphereScope)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
-                Cancel
-              </Button>
-              <Button type="submit" variant="emerald">
-                Pay Bill Now
-              </Button>
+                <option value="business">Business</option>
+                <option value="personal">Personal</option>
+                <option value="family">Family</option>
+              </select>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Total Credit Limit (₹) *
+              </label>
+              <Input
+                type="number"
+                required
+                placeholder="300000"
+                value={limitRupees}
+                onChange={(e) => setLimitRupees(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Current Unbilled / Utilized (₹)
+              </label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={utilizedRupees}
+                onChange={(e) => setUtilizedRupees(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Statement Day (1-28)
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={28}
+                value={statementDay}
+                onChange={(e) => setStatementDay(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Payment Due Day (1-28)
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={28}
+                value={dueDay}
+                onChange={(e) => setDueDay(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="rose">
+              Save Credit Card
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
+
+      {/* Record Card Spend Modal - Premium */}
+      <PremiumModal
+        open={Boolean(spendCardId)}
+        onOpenChange={(o) => !o && setSpendCardId(null)}
+        title="Record Credit Card Spend"
+        description="Increases card utilization and logs the purchase in your Cashbook."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handleSpend} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Purchase Amount (₹) *
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              required
+              placeholder="4500"
+              value={spendRupees}
+              onChange={(e) => setSpendRupees(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Category
+            </label>
+            <Input
+              value={spendCategory}
+              onChange={(e) => setSpendCategory(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Merchant / Note
+            </label>
+            <Input
+              placeholder="AWS Cloud / Flight Ticket / Vendor Supplies"
+              value={spendNote}
+              onChange={(e) => setSpendNote(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSpendCardId(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="rose">
+              Record Spend
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
+
+      {/* Pay Card Bill Modal - Premium */}
+      <PremiumModal
+        open={Boolean(billCardId)}
+        onOpenChange={(o) => !o && setBillCardId(null)}
+        title="Settle Credit Card Statement Bill"
+        description="Debits your selected bank account and restores your card credit limit."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handlePayBill} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Bill Payment Amount (₹) *
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              required
+              value={billRupees}
+              onChange={(e) => setBillRupees(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Pay From Bank Account
+            </label>
+            <select
+              value={billFromAccountId}
+              onChange={(e) => setBillFromAccountId(e.target.value)}
+              className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+            >
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} (
+                  {formatINRFromPaise(a.balance_paise, {
+                    masked: privacyMasked,
+                  })}
+                  )
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setBillCardId(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="emerald">
+              Pay Bill Now
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
     </div>
   );
 }

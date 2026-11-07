@@ -13,7 +13,7 @@ import {
   StickyNote,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 import {
   computeNoteChecklistTotals,
   formatINRFromPaise,
@@ -23,13 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { toast } from '@/components/ui/toastStore';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { PremiumModal } from '@/components/ui/PremiumModal';
 
 const THEME_CLASSES: Record<NoteColorTheme, string> = {
   amber: 'border-slate-200/80 border-t-2 border-t-amber-500 bg-white/95 hover:border-amber-300',
@@ -424,137 +418,136 @@ export function DailyNotesModule() {
         </div>
       )}
 
-      {/* Create Smart Note Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Smart Note & Financial Checklist</DialogTitle>
-            <DialogDescription>
-              Any rupee amount in your checklist lines is automatically extracted and summed.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateNote} className="space-y-4">
+      {/* Create Smart Note Modal - Premium */}
+      <PremiumModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Create Smart Note & Financial Checklist"
+        description="Any rupee amount in your checklist lines is automatically extracted and summed."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handleCreateNote} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Note Title *
+            </label>
+            <Input
+              required
+              placeholder="e.g. Friday Market Stock & Transport List"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Summary / Description
+            </label>
+            <Input
+              placeholder="Brief context..."
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Checklist Items (One per line — include ₹ amounts)
+            </label>
+            <textarea
+              rows={4}
+              value={checklistRaw}
+              onChange={(e) => setChecklistRaw(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Note Title *
+                Pastel Card Theme
               </label>
-              <Input
-                required
-                placeholder="e.g. Friday Market Stock & Transport List"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Summary / Description
-              </label>
-              <Input
-                placeholder="Brief context..."
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Checklist Items (One per line — include ₹ amounts)
-              </label>
-              <textarea
-                rows={4}
-                value={checklistRaw}
-                onChange={(e) => setChecklistRaw(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Pastel Card Theme
-                </label>
-                <select
-                  value={colorTheme}
-                  onChange={(e) =>
-                    setColorTheme(e.target.value as NoteColorTheme)
-                  }
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="amber">Warm Amber</option>
-                  <option value="indigo">Soft Indigo</option>
-                  <option value="emerald">Mint Emerald</option>
-                  <option value="rose">Blush Rose</option>
-                  <option value="sky">Sky Blue</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Priority
-                </label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as any)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere
-                </label>
-                <select
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value as SphereScope)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="business">Business</option>
-                  <option value="personal">Personal</option>
-                  <option value="family">Family</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Tags (comma separated)
-                </label>
-                <Input
-                  value={tagsRaw}
-                  onChange={(e) => setTagsRaw(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Reminder Date
-                </label>
-                <Input
-                  type="date"
-                  value={reminderDate}
-                  onChange={(e) => setReminderDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCreateOpen(false)}
+              <select
+                value={colorTheme}
+                onChange={(e) =>
+                  setColorTheme(e.target.value as NoteColorTheme)
+                }
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
-                Cancel
-              </Button>
-              <Button type="submit" variant="amber">
-                Save Note
-              </Button>
+                <option value="amber">Warm Amber</option>
+                <option value="indigo">Soft Indigo</option>
+                <option value="emerald">Mint Emerald</option>
+                <option value="rose">Blush Rose</option>
+                <option value="sky">Sky Blue</option>
+              </select>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as any)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Sphere
+              </label>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as SphereScope)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value="business">Business</option>
+                <option value="personal">Personal</option>
+                <option value="family">Family</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Tags (comma separated)
+              </label>
+              <Input
+                value={tagsRaw}
+                onChange={(e) => setTagsRaw(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Reminder Date
+              </label>
+              <Input
+                type="date"
+                value={reminderDate}
+                onChange={(e) => setReminderDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="amber">
+              Save Note
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
     </div>
   );
 }

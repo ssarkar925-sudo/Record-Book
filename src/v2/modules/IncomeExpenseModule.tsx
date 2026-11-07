@@ -9,7 +9,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { LedgerEntryType, PaymentMode, SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
@@ -17,13 +17,7 @@ import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toastStore';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { PremiumModal } from '@/components/ui/PremiumModal';
 
 export function IncomeExpenseModule() {
   const {
@@ -344,158 +338,153 @@ export function IncomeExpenseModule() {
         </div>
       </div>
 
-      {/* Add Voucher Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {entryType === 'cash_in'
-                ? 'Record Cash In / Income'
-                : 'Record Expense / Cash Out'}
-            </DialogTitle>
-            <DialogDescription>
-              Automatically updates the selected bank or cash account balance.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAddEntry} className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEntryType('cash_in');
-                  setCategory('Sales & Revenue');
-                }}
-                className={`rounded-xl border py-2 text-xs font-bold ${
-                  entryType === 'cash_in'
-                    ? 'border-emerald-300 bg-[#ECFDF5] text-emerald-900'
-                    : 'border-slate-200 bg-white text-slate-600'
-                }`}
-              >
-                + Cash In (Revenue)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEntryType('expense');
-                  setCategory('Operations & Supplies');
-                }}
-                className={`rounded-xl border py-2 text-xs font-bold ${
-                  entryType === 'expense'
-                    ? 'border-rose-300 bg-[#FFF1F2] text-rose-900'
-                    : 'border-slate-200 bg-white text-slate-600'
-                }`}
-              >
-                - Expense (Outflow)
-              </button>
-            </div>
+      {/* Add Voucher Modal - Premium */}
+      <PremiumModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={entryType === 'cash_in' ? 'Record Cash In / Income' : 'Record Expense / Cash Out'}
+        description="Automatically updates the selected bank or cash account balance."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handleAddEntry} className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEntryType('cash_in');
+                setCategory('Sales & Revenue');
+              }}
+              className={`rounded-xl border py-2 text-xs font-bold ${
+                entryType === 'cash_in'
+                  ? 'border-emerald-300 bg-[#ECFDF5] text-emerald-900'
+                  : 'border-slate-200 bg-white text-slate-600'
+              }`}
+            >
+              + Cash In (Revenue)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEntryType('expense');
+                setCategory('Operations & Supplies');
+              }}
+              className={`rounded-xl border py-2 text-xs font-bold ${
+                entryType === 'expense'
+                  ? 'border-rose-300 bg-[#FFF1F2] text-rose-900'
+                  : 'border-slate-200 bg-white text-slate-600'
+              }`}
+            >
+              - Expense (Outflow)
+            </button>
+          </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Amount (₹) *
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="2500"
-                  value={amountRupees}
-                  onChange={(e) => setAmountRupees(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Category *
-                </label>
-                <Input
-                  required
-                  placeholder="e.g. Wholesale Sales, Logistics, Rent"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Payment Mode
-                </label>
-                <select
-                  value={paymentMode}
-                  onChange={(e) =>
-                    setPaymentMode(e.target.value as PaymentMode)
-                  }
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="upi">UPI</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="cash">Physical Cash</option>
-                  <option value="card">Card</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Linked Account
-                </label>
-                <select
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  {accounts.length === 0 && (
-                    <option value="">General Cashbook</option>
-                  )}
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere
-                </label>
-                <select
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value as SphereScope)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="business">Business</option>
-                  <option value="personal">Personal</option>
-                  <option value="family">Family</option>
-                </select>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Narration / Description
+                Amount (₹) *
               </label>
               <Input
-                placeholder="Party name, bill number, or voucher details..."
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
+                type="number"
+                step="0.01"
+                required
+                placeholder="2500"
+                value={amountRupees}
+                onChange={(e) => setAmountRupees(e.target.value)}
               />
             </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">
-                <Plus className="mr-1.5 h-4 w-4" />
-                Save Voucher
-              </Button>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Category *
+              </label>
+              <Input
+                required
+                placeholder="e.g. Wholesale Sales, Logistics, Rent"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              />
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Payment Mode
+              </label>
+              <select
+                value={paymentMode}
+                onChange={(e) =>
+                  setPaymentMode(e.target.value as PaymentMode)
+                }
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value="upi">UPI</option>
+                <option value="bank">Bank Transfer</option>
+                <option value="cash">Physical Cash</option>
+                <option value="card">Card</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Linked Account
+              </label>
+              <select
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                {accounts.length === 0 && (
+                  <option value="">General Cashbook</option>
+                )}
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Sphere
+              </label>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as SphereScope)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value="business">Business</option>
+                <option value="personal">Personal</option>
+                <option value="family">Family</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Narration / Description
+            </label>
+            <Input
+              placeholder="Party name, bill number, or voucher details..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Save Voucher
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
     </div>
   );
 }

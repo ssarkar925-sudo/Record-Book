@@ -19,7 +19,7 @@ import {
   Unlock,
   Upload,
 } from 'lucide-react';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 import {
   computeOverviewMetrics,
   formatINRFromPaise,

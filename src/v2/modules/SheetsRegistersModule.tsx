@@ -2,19 +2,13 @@
 
 import React, { useState } from 'react';
 import { Download, FileSpreadsheet, Plus, Trash2 } from 'lucide-react';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { SphereScope } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { PremiumModal } from '@/components/ui/PremiumModal';
 
 export function SheetsRegistersModule() {
   const {
@@ -276,65 +270,64 @@ export function SheetsRegistersModule() {
         </div>
       )}
 
-      {/* New Sheet Modal */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Custom Register Sheet</DialogTitle>
-            <DialogDescription>
-              Creates a new spreadsheet with item, quantity, and auto-summed rupee columns.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateSheet} className="space-y-4">
+      {/* New Sheet Modal - Premium */}
+      <PremiumModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Create Custom Register Sheet"
+        description="Creates a new spreadsheet with item, quantity, and auto-summed rupee columns."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handleCreateSheet} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Register Title *
+            </label>
+            <Input
+              required
+              placeholder="e.g. Q4 GST Dispatch Register"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Register Title *
+                Category
               </label>
               <Input
-                required
-                placeholder="e.g. Q4 GST Dispatch Register"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Category
-                </label>
-                <Input
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere
-                </label>
-                <select
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value as SphereScope)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="business">Business</option>
-                  <option value="personal">Personal</option>
-                  <option value="family">Family</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCreateOpen(false)}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Sphere
+              </label>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as SphereScope)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
-                Cancel
-              </Button>
-              <Button type="submit">Create Sheet</Button>
+                <option value="business">Business</option>
+                <option value="personal">Personal</option>
+                <option value="family">Family</option>
+              </select>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">Create Sheet</Button>
+          </div>
+        </form>
+      </PremiumModal>
     </div>
   );
 }

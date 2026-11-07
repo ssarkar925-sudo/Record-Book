@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { formatINRFromPaise } from '../engine/financialEngine';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 
 interface AnimatedCurrencyProps {
   paise: number;

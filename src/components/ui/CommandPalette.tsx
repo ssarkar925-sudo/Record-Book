@@ -21,7 +21,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { useV2Store } from '@/v2/store/useV2Store';
+import { useV2Store } from '@/v2/store/useV2StoreEdge';
 import { formatINRFromPaise } from '@/v2/engine/financialEngine';
 import { ModuleId } from '@/types/v2';
 

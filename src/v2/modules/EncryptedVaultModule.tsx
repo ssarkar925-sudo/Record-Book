@@ -13,20 +13,14 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 import { evaluateSecretStrength } from '../engine/financialEngine';
 import { SphereScope, V2VaultItem } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { toast } from '@/components/ui/toastStore';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { PremiumModal } from '@/components/ui/PremiumModal';
 
 async function deriveVaultKey(passphrase: string, saltHex: string) {
   const enc = new TextEncoder();
@@ -392,142 +386,141 @@ export function EncryptedVaultModule() {
         </div>
       )}
 
-      {/* Add Encrypted Secret Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Encrypt & Store Credential</DialogTitle>
-            <DialogDescription>
-              Encrypted locally in your browser using AES-256-GCM before storage.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleEncryptAndSave} className="space-y-4">
+      {/* Add Encrypted Secret Modal - Premium */}
+      <PremiumModal
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Encrypt & Store Credential"
+        description="Encrypted locally in your browser using AES-256-GCM before storage."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handleEncryptAndSave} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Master Passphrase (Used to Encrypt) *
+            </label>
+            <Input
+              type="password"
+              required
+              placeholder="Enter Master Passphrase..."
+              value={masterPin}
+              onChange={(e) => setMasterPin(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Master Passphrase (Used to Encrypt) *
+                Credential Title *
               </label>
               <Input
-                type="password"
                 required
-                placeholder="Enter Master Passphrase..."
-                value={masterPin}
-                onChange={(e) => setMasterPin(e.target.value)}
+                placeholder="e.g. HDFC Corporate NetBanking"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Credential Title *
-                </label>
-                <Input
-                  required
-                  placeholder="e.g. HDFC Corporate NetBanking"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Category
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="bank_pin">Bank / UPI PIN</option>
-                  <option value="card_pin">Credit / Debit Card PIN</option>
-                  <option value="login">Portal Login Password</option>
-                  <option value="secret_note">Recovery Seed / Key</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Username / Customer ID Hint
-                </label>
-                <Input
-                  placeholder="e.g. Cust ID: 884120"
-                  value={usernameHint}
-                  onChange={(e) => setUsernameHint(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Sphere
-                </label>
-                <select
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value as SphereScope)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="business">Business</option>
-                  <option value="personal">Personal</option>
-                  <option value="family">Family</option>
-                </select>
-              </div>
-            </div>
-
             <div>
-              <div className="mb-1 flex items-center justify-between">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Secret PIN / Password *
-                </label>
-                <button
-                  type="button"
-                  onClick={generateStrongSecret}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:underline"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Generate Strong Key
-                </button>
-              </div>
-              <Input
-                type="password"
-                required
-                placeholder="Plaintext secret to encrypt..."
-                value={secretPlaintext}
-                onChange={(e) => setSecretPlaintext(e.target.value)}
-              />
-              {secretPlaintext && (
-                <div className="mt-2 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500">Encryption Strength:</span>
-                  <span
-                    className={`font-bold ${
-                      strength.color === 'emerald'
-                        ? 'text-emerald-700'
-                        : strength.color === 'sky'
-                          ? 'text-sky-700'
-                          : strength.color === 'amber'
-                            ? 'text-amber-700'
-                            : 'text-rose-700'
-                    }`}
-                  >
-                    {strength.label}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAddOpen(false)}
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as any)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
-                Cancel
-              </Button>
-              <Button type="submit">
-                <Lock className="mr-1.5 h-3.5 w-3.5" />
-                Encrypt & Save
-              </Button>
+                <option value="bank_pin">Bank / UPI PIN</option>
+                <option value="card_pin">Credit / Debit Card PIN</option>
+                <option value="login">Portal Login Password</option>
+                <option value="secret_note">Recovery Seed / Key</option>
+              </select>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Username / Customer ID Hint
+              </label>
+              <Input
+                placeholder="e.g. Cust ID: 884120"
+                value={usernameHint}
+                onChange={(e) => setUsernameHint(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Sphere
+              </label>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as SphereScope)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value="business">Business</option>
+                <option value="personal">Personal</option>
+                <option value="family">Family</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-xs font-semibold text-slate-700">
+                Secret PIN / Password *
+              </label>
+              <button
+                type="button"
+                onClick={generateStrongSecret}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:underline"
+              >
+                <Sparkles className="h-3 w-3" />
+                Generate Strong Key
+              </button>
+            </div>
+            <Input
+              type="password"
+              required
+              placeholder="Plaintext secret to encrypt..."
+              value={secretPlaintext}
+              onChange={(e) => setSecretPlaintext(e.target.value)}
+            />
+            {secretPlaintext && (
+              <div className="mt-2 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Encryption Strength:</span>
+                <span
+                  className={`font-bold ${
+                    strength.color === 'emerald'
+                      ? 'text-emerald-700'
+                      : strength.color === 'sky'
+                        ? 'text-sky-700'
+                        : strength.color === 'amber'
+                          ? 'text-amber-700'
+                          : 'text-rose-700'
+                  }`}
+                >
+                  {strength.label}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">
+              <Lock className="mr-1.5 h-3.5 w-3.5" />
+              Encrypt & Save
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
     </div>
   );
 }

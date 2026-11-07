@@ -10,7 +10,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { useV2Store } from '../store/useV2Store';
+import { useV2Store } from '../store/useV2StoreEdge';
 import { formatINRFromPaise, rupeesToPaise } from '../engine/financialEngine';
 import { DueDirection, SphereScope, V2PartyDue } from '@/types/v2';
 import { Button } from '@/components/ui/button';
@@ -18,13 +18,8 @@ import { Input } from '@/components/ui/input';
 import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { toast } from '@/components/ui/toastStore';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { PremiumModal } from '@/components/ui/PremiumModal';
+import { CheckCircle2 } from 'lucide-react';
 
 export function DuesUdharModule() {
   const {
@@ -417,223 +412,217 @@ export function DuesUdharModule() {
         </div>
       )}
 
-      {/* Add Due Modal */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New Party Credit / Udhar Entry</DialogTitle>
-            <DialogDescription>
-              Record a customer receivable or supplier payable invoice.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateDue} className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setDirection('receivable');
-                  setPartyType('customer');
-                }}
-                className={`rounded-xl border py-2 text-xs font-bold ${
-                  direction === 'receivable'
-                    ? 'border-amber-300 bg-[#FFFBEB] text-amber-950'
-                    : 'border-slate-200 bg-white text-slate-600'
-                }`}
-              >
-                To Receive (Customer Udhar)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDirection('payable');
-                  setPartyType('supplier');
-                }}
-                className={`rounded-xl border py-2 text-xs font-bold ${
-                  direction === 'payable'
-                    ? 'border-rose-300 bg-[#FFF1F2] text-rose-950'
-                    : 'border-slate-200 bg-white text-slate-600'
-                }`}
-              >
-                To Pay (Supplier Bill)
-              </button>
-            </div>
+      {/* Add Due Modal - Premium */}
+      <PremiumModal
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="New Party Credit / Udhar Entry"
+        description="Record a customer receivable or supplier payable invoice."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handleCreateDue} className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDirection('receivable');
+                setPartyType('customer');
+              }}
+              className={`rounded-xl border py-2 text-xs font-bold ${
+                direction === 'receivable'
+                  ? 'border-amber-300 bg-[#FFFBEB] text-amber-950'
+                  : 'border-slate-200 bg-white text-slate-600'
+              }`}
+            >
+              To Receive (Customer Udhar)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDirection('payable');
+                setPartyType('supplier');
+              }}
+              className={`rounded-xl border py-2 text-xs font-bold ${
+                direction === 'payable'
+                  ? 'border-rose-300 bg-[#FFF1F2] text-rose-950'
+                  : 'border-slate-200 bg-white text-slate-600'
+              }`}
+            >
+              To Pay (Supplier Bill)
+            </button>
+          </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Party / Business Name *
-                </label>
-                <Input
-                  required
-                  placeholder="e.g. Sharma Wholesale Mart"
-                  value={partyName}
-                  onChange={(e) => setPartyName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Phone Number
-                </label>
-                <Input
-                  placeholder="+91 98300 00000"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Total Invoice Amount (₹) *
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="25000"
-                  value={totalRupees}
-                  onChange={(e) => setTotalRupees(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Advance Paid (₹)
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0"
-                  value={paidRupees}
-                  onChange={(e) => setPaidRupees(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Due Date
-                </label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Invoice Reference / Notes
+                Party / Business Name *
               </label>
               <Input
-                placeholder="Invoice #INV-104 or dispatch note..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                required
+                placeholder="e.g. Sharma Wholesale Mart"
+                value={partyName}
+                onChange={(e) => setPartyName(e.target.value)}
               />
             </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAddOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="amber">
-                Save Party Record
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Settle Due Modal */}
-      <Dialog
-        open={Boolean(settleTargetId)}
-        onOpenChange={(o) => !o && setSettleTargetId(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Settle Balance — {targetDue?.party_name}
-            </DialogTitle>
-            <DialogDescription>
-              Posts a corresponding Cashbook entry and updates your selected bank or cash account.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSettle} className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Settlement Amount (₹) *
+                Phone Number
+              </label>
+              <Input
+                placeholder="+91 98300 00000"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Total Invoice Amount (₹) *
               </label>
               <Input
                 type="number"
                 step="0.01"
                 required
-                value={payRupees}
-                onChange={(e) => setPayRupees(e.target.value)}
+                placeholder="25000"
+                value={totalRupees}
+                onChange={(e) => setTotalRupees(e.target.value)}
               />
             </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Payment Mode
-                </label>
-                <select
-                  value={payMode}
-                  onChange={(e) => setPayMode(e.target.value as any)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  <option value="upi">UPI</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="cash">Physical Cash</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Deposit / Debit Account
-                </label>
-                <select
-                  value={payAccountId}
-                  onChange={(e) => setPayAccountId(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">
-                Settlement Remark
+                Advance Paid (₹)
               </label>
               <Input
-                placeholder="UTR / UPI reference or receipt note..."
-                value={payRemark}
-                onChange={(e) => setPayRemark(e.target.value)}
+                type="number"
+                step="0.01"
+                placeholder="0"
+                value={paidRupees}
+                onChange={(e) => setPaidRupees(e.target.value)}
               />
             </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setSettleTargetId(null)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="emerald">
-                Confirm Settlement
-              </Button>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Due Date
+              </label>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Invoice Reference / Notes
+            </label>
+            <Input
+              placeholder="Invoice #INV-104 or dispatch note..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="amber">
+              Save Party Record
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
+
+      {/* Settle Due Modal - Premium */}
+      <PremiumModal
+        open={Boolean(settleTargetId)}
+        onOpenChange={(o) => !o && setSettleTargetId(null)}
+        title={`Settle Balance — ${targetDue?.party_name}`}
+        description="Posts a corresponding Cashbook entry and updates your selected bank or cash account."
+        size="md"
+        variant="dialog"
+      >
+        <form onSubmit={handleSettle} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Settlement Amount (₹) *
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              required
+              value={payRupees}
+              onChange={(e) => setPayRupees(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Payment Mode
+              </label>
+              <select
+                value={payMode}
+                onChange={(e) => setPayMode(e.target.value as any)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value="upi">UPI</option>
+                <option value="bank">Bank Transfer</option>
+                <option value="cash">Physical Cash</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Deposit / Debit Account
+              </label>
+              <select
+                value={payAccountId}
+                onChange={(e) => setPayAccountId(e.target.value)}
+                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">
+              Settlement Remark
+            </label>
+            <Input
+              placeholder="UTR / UPI reference or receipt note..."
+              value={payRemark}
+              onChange={(e) => setPayRemark(e.target.value)}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSettleTargetId(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="emerald">
+              <CheckCircle2 className="mr-1.5 h-4 w-4" />
+              Confirm Settlement
+            </Button>
+          </div>
+        </form>
+      </PremiumModal>
     </div>
   );
 }

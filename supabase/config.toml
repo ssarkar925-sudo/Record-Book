@@ -1,0 +1,58 @@
+# Supabase CLI local development config for Record Book V2
+# Run locally: supabase start
+# Deploy functions: supabase functions deploy <name> --project-ref xelxvojazyscbounzajs
+
+api_port = 54321
+db_port = 54322
+studio_port = 54323
+inbucket_port = 54324
+analytics_enabled = false
+
+[auth]
+enabled = true
+email_autoconfirm = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["capacitor://localhost", "http://localhost:3000"]
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+
+[functions]
+  # All functions share the same JWT secret from the project
+  verify_jwt = true
+
+  # Function-specific env (overridden in production by Supabase dashboard)
+  [functions.health]
+  verify_jwt = false  # public endpoint
+
+  [functions.reconcile]
+  verify_jwt = true
+
+  [functions.summary]
+  verify_jwt = true
+
+  [functions.accounts]
+  verify_jwt = true
+
+  [functions.ledger]
+  verify_jwt = true
+
+  [functions.dues]
+  verify_jwt = true
+
+  [functions.credit-cards]
+  verify_jwt = true
+
+  [functions.sheets]
+  verify_jwt = true
+
+  [functions.notes]
+  verify_jwt = true
+
+  [functions.vault]
+  verify_jwt = true
+
+[studio]
+enabled = true
+api_url = "http://localhost:54321"
