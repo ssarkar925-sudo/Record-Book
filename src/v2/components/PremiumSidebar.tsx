@@ -916,7 +916,8 @@ export function PremiumSidebar({ isOpen, onClose }: PremiumSidebarProps) {
                 <Check className="mr-1.5 h-4 w-4" />
                 Activate Security PIN
               </Button>
-            </div          </form>
+            </div>
+          </form>
         </PremiumModal>
       )}
 

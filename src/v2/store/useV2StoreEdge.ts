@@ -1701,25 +1701,6 @@ async function deleteCloudRow(table: string, id: string) {
   } catch {}
 }
 
-// Re-export helper functions
-function getConfirmedSet(): Set<string> {
-  return new Set(loadJSON<string[]>(KEYS.confirmedIds, []));
-}
-
-function saveConfirmedSet(set: Set<string>) {
-  saveJSON(KEYS.confirmedIds, Array.from(set));
-}
-
-function getDeletedSet(): Set<string> {
-  return new Set(loadJSON<string[]>(KEYS.deletedIds, []));
-}
-
-function recordTombstone(id: string) {
-  const s = getDeletedSet();
-  s.add(id);
-  saveJSON(KEYS.deletedIds, Array.from(s));
-}
-
 function scheduleMetadataSnapshotPush(getState: () => V2StoreState) {
   if (typeof window === 'undefined') return;
   if (metadataPushTimer) clearTimeout(metadataPushTimer);

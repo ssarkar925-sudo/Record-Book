@@ -19,7 +19,6 @@ import { DaylightKpiCard } from '@/components/ui/DaylightKpiCard';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { toast } from '@/components/ui/toastStore';
 import { PremiumModal } from '@/components/ui/PremiumModal';
-import { CheckCircle2 } from 'lucide-react';
 
 export function DuesUdharModule() {
   const {
