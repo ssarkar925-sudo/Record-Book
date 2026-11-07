@@ -36,6 +36,7 @@ import { CommandPalette } from '@/components/ui/CommandPalette';
 import { DaylightToastContainer } from '@/components/ui/DaylightToast';
 import { toast } from '@/components/ui/toastStore';
 import { PremiumSidebar } from '@/v2/components/PremiumSidebar';
+import { PremiumModal } from '@/components/ui/PremiumModal';
 
 import { OverviewModule } from '@/v2/modules/OverviewModule';
 import { BankCashModule } from '@/v2/modules/BankCashModule';
