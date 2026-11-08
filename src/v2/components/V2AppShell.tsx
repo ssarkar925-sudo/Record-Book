@@ -37,6 +37,7 @@ import { DaylightToastContainer } from '@/components/ui/DaylightToast';
 import { toast } from '@/components/ui/toastStore';
 import { PremiumSidebar } from '@/v2/components/PremiumSidebar';
 import { PremiumModal } from '@/components/ui/PremiumModal';
+import { LayoutErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 import { OverviewModule } from '@/v2/modules/OverviewModule';
 import { BankCashModule } from '@/v2/modules/BankCashModule';
@@ -499,7 +500,7 @@ export function V2AppShell() {
             ))}
           </div>
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             <motion.div
               key={activeModule}
               initial={{ opacity: 0, y: 6 }}
@@ -507,17 +508,19 @@ export function V2AppShell() {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.18 }}
             >
-              {activeModule === 'overview' && (
-                <OverviewModule onOpenQuickEntry={handleOpenQuickEntry} />
-              )}
-              {activeModule === 'bank' && <BankCashModule />}
-              {activeModule === 'expenses' && <IncomeExpenseModule />}
-              {activeModule === 'dues' && <DuesUdharModule />}
-              {activeModule === 'cards' && <CreditCardsModule />}
-              {activeModule === 'sheets' && <SheetsRegistersModule />}
-              {activeModule === 'notes' && <DailyNotesModule />}
-              {activeModule === 'vault' && <EncryptedVaultModule />}
-              {activeModule === 'reports' && <ReportsSyncDocsModule />}
+              <LayoutErrorBoundary>
+                {activeModule === 'overview' && (
+                  <OverviewModule onOpenQuickEntry={handleOpenQuickEntry} />
+                )}
+                {activeModule === 'bank' && <BankCashModule />}
+                {activeModule === 'expenses' && <IncomeExpenseModule />}
+                {activeModule === 'dues' && <DuesUdharModule />}
+                {activeModule === 'cards' && <CreditCardsModule />}
+                {activeModule === 'sheets' && <SheetsRegistersModule />}
+                {activeModule === 'notes' && <DailyNotesModule />}
+                {activeModule === 'vault' && <EncryptedVaultModule />}
+                {activeModule === 'reports' && <ReportsSyncDocsModule />}
+              </LayoutErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </main>
