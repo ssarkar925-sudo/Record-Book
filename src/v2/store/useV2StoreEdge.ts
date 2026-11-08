@@ -213,6 +213,22 @@ function recordTombstone(id: string) {
   saveJSON(KEYS.deletedIds, Array.from(s));
 }
 
+function setupRealtimeSubscription(client: any, userId: string | null, syncNowFn: () => Promise<void>) {
+  if (typeof window === 'undefined') return;
+  if (!client || !userId || (window as any).__rb_v2_realtime_bound) return;
+  (window as any).__rb_v2_realtime_bound = true;
+  client
+    .channel('rb-v2-multi-device-sync')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public' },
+      () => {
+        void syncNowFn();
+      }
+    )
+    .subscribe();
+}
+
 export const useV2Store = create<V2StoreState>((set, get) => ({
   activeModule: 'overview',
   scopeFilter: 'all',
@@ -553,6 +569,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
         account_id: accountId || get().accounts[0]?.id,
         payment_mode: paymentMode,
         remark,
+        skip_ledger: true,
       });
     } catch (err) {
       console.error('Edge function dues settle failed:', err);
@@ -646,6 +663,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
         category: category || 'Card Purchase',
         note: note || 'Card purchase',
         payment_mode: 'card',
+        skip_ledger: true,
       });
       await edgeApi.ledger.create(spendEntry);
     } catch (err) {
@@ -673,6 +691,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
         amount_paise: amountPaise,
         account_id: fromAccountId,
         payment_mode: 'bank',
+        skip_ledger: true,
       });
     } catch (err) {
       console.error('Edge function card bill pay failed:', err);
@@ -1035,7 +1054,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     });
 
     try {
-      await edgeApi.notes.postToLedger(noteId, entryType, 'Daily Note Checklist', 'upi', accountId, `From Note: ${note.title}`);
+      await edgeApi.notes.postToLedger(noteId, entryType, 'Daily Note Checklist', 'upi', accountId, `From Note: ${note.title}`, true);
     } catch (err) {
       console.error('Edge function post note to ledger failed:', err);
     }
@@ -1107,18 +1126,8 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
 
     try {
       const { client, isConfigured } = getSupabaseV2Client();
-      if (isConfigured && get().userId && !(window as any).__rb_v2_realtime_bound) {
-        (window as any).__rb_v2_realtime_bound = true;
-        client
-          .channel('rb-v2-multi-device-sync')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public' },
-            () => {
-              void get().syncNowWithCloud();
-            }
-          )
-          .subscribe();
+      if (isConfigured) {
+        setupRealtimeSubscription(client, get().userId, get().syncNowWithCloud);
       }
     } catch {}
   },
@@ -1285,6 +1294,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
       set({ userEmail: data.user.email || email, userId: data.user.id });
       get().logSecurityEvent('Cloud Account Signed In', `Authenticated as ${data.user.email || email}`);
       await get().syncNowWithCloud();
+      setupRealtimeSubscription(client, data.user.id, get().syncNowWithCloud);
     }
     return { ok: true };
   },
@@ -1303,6 +1313,7 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
       set({ userEmail: data.user.email || email, userId: data.user.id });
       get().logSecurityEvent('Cloud Account Created', `Registered ${data.user.email || email}`);
       await get().syncNowWithCloud();
+      setupRealtimeSubscription(client, data.user.id, get().syncNowWithCloud);
     }
     return { ok: true };
   },
@@ -1310,11 +1321,13 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
   signOutSupabase: async () => {
     const prevEmail = get().userEmail;
     const { client, isConfigured } = getSupabaseV2Client();
-    if (isConfigured) {
-      await client.auth.signOut().catch(() => {});
-    }
     if (typeof window !== 'undefined') {
+      (window as any).__rb_v2_realtime_bound = false;
       Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+    }
+    if (isConfigured) {
+      client.removeAllChannels().catch(() => {});
+      await client.auth.signOut().catch(() => {});
     }
     set({
       userEmail: null,

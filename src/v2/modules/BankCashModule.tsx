@@ -136,6 +136,13 @@ export function BankCashModule() {
     e.preventDefault();
     const amountPaise = rupeesToPaise(transferRupees);
     if (!fromId || !toId || fromId === toId || amountPaise <= 0) return;
+
+    const sourceAcc = accounts.find((a) => a.id === fromId);
+    if (sourceAcc && sourceAcc.account_type !== 'od_cc' && sourceAcc.balance_paise < amountPaise) {
+      toast.error('Insufficient Funds', `${sourceAcc.name} has only ${formatINRFromPaise(sourceAcc.balance_paise)} available`);
+      return;
+    }
+
     await transferBetweenAccounts({
       fromAccountId: fromId,
       toAccountId: toId,
@@ -155,10 +162,15 @@ export function BankCashModule() {
 
   const handleCopyIfsc = (id: string, code: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(code);
-      setCopiedId(id);
-      toast.info('IFSC Copied', code);
-      setTimeout(() => setCopiedId(null), 1500);
+      navigator.clipboard.writeText(code)
+        .then(() => {
+          setCopiedId(id);
+          toast.info('IFSC Copied', code);
+          setTimeout(() => setCopiedId(null), 1500);
+        })
+        .catch(() => {
+          toast.error('Copy Failed', 'Clipboard access denied');
+        });
     }
   };
 

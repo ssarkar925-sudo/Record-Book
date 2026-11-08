@@ -23,6 +23,9 @@ import { toast } from '@/components/ui/toastStore';
 import { PremiumModal } from '@/components/ui/PremiumModal';
 
 async function deriveVaultKey(passphrase: string, saltHex: string) {
+  if (typeof window === 'undefined' || !window.crypto?.subtle) {
+    throw new Error('Web Cryptography API (SubtleCrypto) is not supported in this environment.');
+  }
   const enc = new TextEncoder();
   const keyMaterial = await window.crypto.subtle.importKey(
     'raw',
@@ -203,10 +206,15 @@ export function EncryptedVaultModule() {
 
   const handleCopySecret = (id: string, val: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(val);
-      setCopiedId(id);
-      toast.info('Copied to Clipboard', 'Confidential secret copied');
-      setTimeout(() => setCopiedId(null), 1500);
+      navigator.clipboard.writeText(val)
+        .then(() => {
+          setCopiedId(id);
+          toast.info('Copied to Clipboard', 'Confidential secret copied');
+          setTimeout(() => setCopiedId(null), 1500);
+        })
+        .catch(() => {
+          toast.error('Copy Failed', 'Clipboard access denied');
+        });
     }
   };
 

@@ -156,21 +156,23 @@ Deno.serve(async (req: Request) => {
           .single();
         if (error) throw error;
 
-        // Create ledger entry
-        const { error: leErr } = await client.from('v2_ledger_entries').insert({
-          workspace_id: workspaceId,
-          owner_id: userId,
-          entry_type: 'card_spend',
-          amount_paise: body.amount_paise,
-          category: body.category,
-          payment_mode: body.payment_mode,
-          account_id: body.account_id ?? null,
-          card_id: body.card_id,
-          note: body.note ?? `Card spend: ${body.category}`,
-          entry_date: body.entry_date ?? new Date().toISOString(),
-          scope: card.scope,
-        });
-        if (leErr) throw leErr;
+        // Create ledger entry if not handled by caller
+        if (!body.skip_ledger) {
+          const { error: leErr } = await client.from('v2_ledger_entries').insert({
+            workspace_id: workspaceId,
+            owner_id: userId,
+            entry_type: 'card_spend',
+            amount_paise: body.amount_paise,
+            category: body.category,
+            payment_mode: body.payment_mode,
+            account_id: body.account_id ?? null,
+            card_id: body.card_id,
+            note: body.note ?? `Card spend: ${body.category}`,
+            entry_date: body.entry_date ?? new Date().toISOString(),
+            scope: card.scope,
+          });
+          if (leErr) throw leErr;
+        }
 
         return ok(data);
       }
@@ -206,21 +208,23 @@ Deno.serve(async (req: Request) => {
           .single();
         if (error) throw error;
 
-        // Create ledger entry
-        const { error: leErr } = await client.from('v2_ledger_entries').insert({
-          workspace_id: workspaceId,
-          owner_id: userId,
-          entry_type: 'card_payment',
-          amount_paise: body.amount_paise,
-          category: 'Credit Card Bill Payment',
-          payment_mode: body.payment_mode ?? 'bank',
-          account_id: body.account_id,
-          card_id: body.card_id,
-          note: body.note ?? `Bill payment: ${card.card_name}`,
-          entry_date: body.entry_date ?? new Date().toISOString(),
-          scope: card.scope,
-        });
-        if (leErr) throw leErr;
+        // Create ledger entry if not handled by caller
+        if (!body.skip_ledger) {
+          const { error: leErr } = await client.from('v2_ledger_entries').insert({
+            workspace_id: workspaceId,
+            owner_id: userId,
+            entry_type: 'card_payment',
+            amount_paise: body.amount_paise,
+            category: 'Credit Card Bill Payment',
+            payment_mode: body.payment_mode ?? 'bank',
+            account_id: body.account_id,
+            card_id: body.card_id,
+            note: body.note ?? `Bill payment: ${card.card_name}`,
+            entry_date: body.entry_date ?? new Date().toISOString(),
+            scope: card.scope,
+          });
+          if (leErr) throw leErr;
+        }
 
         return ok(data);
       }

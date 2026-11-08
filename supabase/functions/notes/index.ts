@@ -138,19 +138,21 @@ Deno.serve(async (req: Request) => {
         const amount = note.calculated_total_paise;
         if (amount <= 0) throw new ValidationError('note has no calculated amount');
 
-        const { error } = await client.from('v2_ledger_entries').insert({
-          workspace_id: workspaceId,
-          owner_id: userId,
-          entry_type: body.entry_type,
-          amount_paise: amount,
-          category: body.category ?? (body.entry_type === 'cash_in' ? 'From Notes' : 'From Notes'),
-          payment_mode: body.payment_mode ?? 'upi',
-          account_id: body.account_id ?? null,
-          note: body.note ?? `From note: ${note.title}`,
-          entry_date: new Date().toISOString(),
-          scope: note.scope,
-        });
-        if (error) throw error;
+        if (!body.skip_ledger) {
+          const { error } = await client.from('v2_ledger_entries').insert({
+            workspace_id: workspaceId,
+            owner_id: userId,
+            entry_type: body.entry_type,
+            amount_paise: amount,
+            category: body.category ?? (body.entry_type === 'cash_in' ? 'From Notes' : 'From Notes'),
+            payment_mode: body.payment_mode ?? 'upi',
+            account_id: body.account_id ?? null,
+            note: body.note ?? `From note: ${note.title}`,
+            entry_date: new Date().toISOString(),
+            scope: note.scope,
+          });
+          if (error) throw error;
+        }
 
         return ok({ posted: true, amount_paise: amount });
       }

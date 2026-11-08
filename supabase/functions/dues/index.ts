@@ -150,21 +150,23 @@ Deno.serve(async (req: Request) => {
           .single();
         if (error) throw error;
 
-        // Also create a ledger entry for the settlement
-        const { error: leErr } = await client.from('v2_ledger_entries').insert({
-          workspace_id: workspaceId,
-          owner_id: userId,
-          entry_type: 'due_settlement',
-          amount_paise: body.pay_amount_paise,
-          category: due.direction === 'receivable' ? 'Payment Received' : 'Payment Made',
-          payment_mode: body.payment_mode,
-          account_id: body.account_id,
-          party_id: due.id,
-          note: body.remark ?? `Settlement: ${due.party_name}`,
-          entry_date: new Date().toISOString(),
-          scope: due.scope,
-        });
-        if (leErr) throw leErr;
+        // Also create a ledger entry for the settlement if not handled by caller
+        if (!body.skip_ledger) {
+          const { error: leErr } = await client.from('v2_ledger_entries').insert({
+            workspace_id: workspaceId,
+            owner_id: userId,
+            entry_type: 'due_settlement',
+            amount_paise: body.pay_amount_paise,
+            category: due.direction === 'receivable' ? 'Payment Received' : 'Payment Made',
+            payment_mode: body.payment_mode,
+            account_id: body.account_id,
+            party_id: due.id,
+            note: body.remark ?? `Settlement: ${due.party_name}`,
+            entry_date: new Date().toISOString(),
+            scope: due.scope,
+          });
+          if (leErr) throw leErr;
+        }
 
         return ok(data);
       }

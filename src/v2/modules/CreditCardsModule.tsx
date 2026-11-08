@@ -120,13 +120,18 @@ export function CreditCardsModule() {
   const handlePayBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!billCardId) return;
+    const targetAccountId = billFromAccountId || accounts[0]?.id;
+    if (!targetAccountId) {
+      toast.warning('Account Required', 'Please add a bank or cash account first to pay credit card bills.');
+      return;
+    }
     const paise = rupeesToPaise(billRupees);
     if (paise <= 0) return;
 
     await payCardBill({
       cardId: billCardId,
       amountPaise: paise,
-      fromAccountId: billFromAccountId || accounts[0]?.id || '',
+      fromAccountId: targetAccountId,
     });
     setBillCardId(null);
     setBillRupees('');

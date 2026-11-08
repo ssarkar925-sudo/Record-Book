@@ -111,7 +111,7 @@ export const duesApi = {
   update: (id: string, patch: Partial<V2PartyDue>) =>
     edgeRequest<V2PartyDue>('dues', { method: 'PATCH', body: JSON.stringify({ id, ...patch }) }),
 
-  settle: (data: { due_id: string; pay_amount_paise: number; account_id: string; payment_mode: 'cash' | 'upi' | 'bank' | 'card'; remark?: string }) =>
+  settle: (data: { due_id: string; pay_amount_paise: number; account_id: string; payment_mode: 'cash' | 'upi' | 'bank' | 'card'; remark?: string; skip_ledger?: boolean }) =>
     edgeRequest<V2PartyDue>('dues', { method: 'POST', params: { action: 'settle' }, body: JSON.stringify(data) }),
 
   delete: (id: string) =>
@@ -129,10 +129,10 @@ export const creditCardsApi = {
   update: (id: string, patch: Partial<V2CreditCard>) =>
     edgeRequest<V2CreditCard>('credit-cards', { method: 'PATCH', body: JSON.stringify({ id, ...patch }) }),
 
-  spend: (data: { card_id: string; amount_paise: number; category: string; note?: string; payment_mode?: 'cash' | 'upi' | 'bank' | 'card'; account_id?: string; entry_date?: string }) =>
+  spend: (data: { card_id: string; amount_paise: number; category: string; note?: string; payment_mode?: 'cash' | 'upi' | 'bank' | 'card'; account_id?: string; entry_date?: string; skip_ledger?: boolean }) =>
     edgeRequest<V2CreditCard>('credit-cards', { method: 'POST', params: { action: 'spend' }, body: JSON.stringify(data) }),
 
-  payBill: (data: { card_id: string; amount_paise: number; account_id: string; payment_mode?: 'cash' | 'upi' | 'bank' | 'card'; note?: string; entry_date?: string }) =>
+  payBill: (data: { card_id: string; amount_paise: number; account_id: string; payment_mode?: 'cash' | 'upi' | 'bank' | 'card'; note?: string; entry_date?: string; skip_ledger?: boolean }) =>
     edgeRequest<V2CreditCard>('credit-cards', { method: 'POST', params: { action: 'pay_bill' }, body: JSON.stringify(data) }),
 
   delete: (id: string) =>
@@ -165,8 +165,8 @@ export const notesApi = {
   update: (id: string, patch: Partial<V2Note>) =>
     edgeRequest<V2Note>('notes', { method: 'PATCH', body: JSON.stringify({ id, ...patch }) }),
 
-  postToLedger: (noteId: string, entryType: 'cash_in' | 'expense', category?: string, paymentMode?: 'cash' | 'upi' | 'bank' | 'card', accountId?: string, note?: string) =>
-    edgeRequest<{ posted: boolean; amount_paise: number }>('notes', { method: 'POST', params: { action: 'post_to_ledger' }, body: JSON.stringify({ note_id: noteId, entry_type: entryType, category, payment_mode: paymentMode, account_id: accountId, note }) }),
+  postToLedger: (noteId: string, entryType: 'cash_in' | 'expense', category?: string, paymentMode?: 'cash' | 'upi' | 'bank' | 'card', accountId?: string, note?: string, skipLedger?: boolean) =>
+    edgeRequest<{ posted: boolean; amount_paise: number }>('notes', { method: 'POST', params: { action: 'post_to_ledger' }, body: JSON.stringify({ note_id: noteId, entry_type: entryType, category, payment_mode: paymentMode, account_id: accountId, note, skip_ledger: skipLedger }) }),
 
   delete: (id: string, permanent = false) =>
     edgeRequest<{ deleted: string }>('notes', { method: 'DELETE', params: { id, permanent: String(permanent) } }),
