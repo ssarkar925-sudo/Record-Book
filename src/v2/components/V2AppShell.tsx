@@ -37,7 +37,7 @@ import { DaylightToastContainer } from '@/components/ui/DaylightToast';
 import { toast } from '@/components/ui/toastStore';
 import { PremiumSidebar } from '@/v2/components/PremiumSidebar';
 import { PremiumModal } from '@/components/ui/PremiumModal';
-import { LayoutErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { LayoutErrorBoundary } from '@/v2/components/ui/ErrorBoundary';
 
 import { OverviewModule } from '@/v2/modules/OverviewModule';
 import { BankCashModule } from '@/v2/modules/BankCashModule';
