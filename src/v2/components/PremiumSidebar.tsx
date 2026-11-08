@@ -39,6 +39,7 @@ import {
   Search,
   Filter,
   Plus,
+  ArrowUpRight,
 } from 'lucide-react';
 import { useV2Store } from '../store/useV2StoreEdge';
 import { ModuleId, SphereScope } from '@/types/v2';
