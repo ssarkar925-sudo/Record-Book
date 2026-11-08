@@ -37,6 +37,7 @@ import {
   Eye,
   EyeOff,
   Search,
+  Check,
   Filter,
   Plus,
   ArrowUpRight,
@@ -48,6 +49,7 @@ import { computeOverviewMetrics } from '../engine/financialEngine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { CommandPalette } from '@/components/ui/CommandPalette';
 import { PremiumModal } from '@/components/ui/PremiumModal';
 import { TabularNums } from '@/components/ui/TabularNums';
 import { toast } from '@/components/ui/toastStore';
@@ -523,7 +525,7 @@ export function PremiumSidebar({ isOpen, onClose }: PremiumSidebarProps) {
                             ? `border border-${accent}-200/90 bg-${accent}-50/90 text-${accent}-900 shadow-2xs`
                             : 'border border-transparent text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
                         }`}
-                        style={{ '--accent-color': accent }}
+                        style={{ ['--accent-color' as string]: accent }}
                       >
                         <span className="flex items-center gap-2.5 min-w-0">
                           <Icon

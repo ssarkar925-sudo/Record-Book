@@ -256,7 +256,9 @@ export function PremiumFormModal({
   return (
     <PremiumModal {...props}>
       <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
-        {({ register }) => props.children(register)}
+        {typeof props.children === 'function'
+          ? (props.children as any)((name: string) => ({ name, id: name }))
+          : props.children}
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-200/60">
           <button
             type="button"

@@ -43,6 +43,8 @@ const KEYS = {
   securityAudit: `${STORAGE_PREFIX}security_audit_log`,
 };
 
+const sheetUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 export interface SecurityAuditEvent {
   id: string;
   action: string;
@@ -774,11 +776,19 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     saveJSON(KEYS.sheets, next);
     const updated = next.find((s) => s.id === sheetId);
     if (updated) {
-      try {
-        await edgeApi.sheets.update(sheetId, updated);
-      } catch (err) {
-        console.error('Edge function sheet cell update failed:', err);
-      }
+      const existing = sheetUpdateTimers.get(sheetId);
+      if (existing) clearTimeout(existing);
+      sheetUpdateTimers.set(
+        sheetId,
+        setTimeout(async () => {
+          sheetUpdateTimers.delete(sheetId);
+          try {
+            await edgeApi.sheets.update(sheetId, updated);
+          } catch (err) {
+            console.error('Edge function sheet cell update failed:', err);
+          }
+        }, 350)
+      );
     }
   },
 
@@ -1198,23 +1208,25 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
       const syncTableCollection = async <T extends { id: string; workspace_id: string; updated_at: string }>(
         tableName: string,
         tableSettled: PromiseSettledResult<any>,
-        metaField: string,
+        _metaField: string,
         localList: T[],
         storageKey: string,
         applyMergedFn: (merged: T[]) => void
       ) => {
         const remoteList: T[] = [];
-        if (
-          tableSettled.status === 'fulfilled' &&
-          Array.isArray(tableSettled.value?.data)
-        ) {
-          remoteList.push(...(tableSettled.value.data as T[]));
+        if (tableSettled.status === 'fulfilled') {
+          const val = tableSettled.value;
+          if (Array.isArray(val)) {
+            remoteList.push(...val);
+          } else if (Array.isArray(val?.data)) {
+            remoteList.push(...val.data);
+          }
         }
 
         if (
           remoteList.length > 0 ||
           localList.length > 0 ||
-          (tableSettled.status === 'fulfilled' && Array.isArray(tableSettled.value?.data))
+          tableSettled.status === 'fulfilled'
         ) {
           const rec = reconcileV2Records<T>({
             remoteRecords: remoteList,
@@ -1236,22 +1248,13 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
         }
       };
 
-      // Reuse existing Supabase client for reads (faster for bulk)
-      const { data: userRes } = await client.auth.getUser();
-      const metaSnapshot = userRes?.user?.user_metadata?.rb_v2_cloud_snapshot as any;
-
-      if (Array.isArray(metaSnapshot?.deletedIds)) {
-        metaSnapshot.deletedIds.forEach((id: string) => deleted.add(id));
-        saveJSON(KEYS.deletedIds, Array.from(deleted));
-      }
-
-      await syncTableCollection('v2_accounts', { status: 'fulfilled', value: { data: get().accounts } }, 'accounts', get().accounts, KEYS.accounts, (merged) => set({ accounts: merged }));
-      await syncTableCollection('v2_ledger_entries', { status: 'fulfilled', value: { data: get().entries } }, 'entries', get().entries, KEYS.entries, (merged) => set({ entries: merged }));
-      await syncTableCollection('v2_parties_dues', { status: 'fulfilled', value: { data: get().dues } }, 'dues', get().dues, KEYS.dues, (merged) => set({ dues: merged }));
-      await syncTableCollection('v2_credit_cards', { status: 'fulfilled', value: { data: get().cards } }, 'cards', get().cards, KEYS.cards, (merged) => set({ cards: merged }));
-      await syncTableCollection('v2_sheets', { status: 'fulfilled', value: { data: get().sheets } }, 'sheets', get().sheets, KEYS.sheets, (merged) => set({ sheets: merged }));
-      await syncTableCollection('v2_notes', { status: 'fulfilled', value: { data: get().notes } }, 'notes', get().notes, KEYS.notes, (merged) => set({ notes: merged }));
-      await syncTableCollection('v2_vault_items', { status: 'fulfilled', value: { data: get().vaultItems } }, 'vaultItems', get().vaultItems, KEYS.vault, (merged) => set({ vaultItems: merged }));
+      await syncTableCollection('v2_accounts', accRes, 'accounts', get().accounts, KEYS.accounts, (merged) => set({ accounts: merged }));
+      await syncTableCollection('v2_ledger_entries', entRes, 'entries', get().entries, KEYS.entries, (merged) => set({ entries: merged }));
+      await syncTableCollection('v2_parties_dues', dueRes, 'dues', get().dues, KEYS.dues, (merged) => set({ dues: merged }));
+      await syncTableCollection('v2_credit_cards', cardRes, 'cards', get().cards, KEYS.cards, (merged) => set({ cards: merged }));
+      await syncTableCollection('v2_sheets', sheetRes, 'sheets', get().sheets, KEYS.sheets, (merged) => set({ sheets: merged }));
+      await syncTableCollection('v2_notes', noteRes, 'notes', get().notes, KEYS.notes, (merged) => set({ notes: merged }));
+      await syncTableCollection('v2_vault_items', vaultRes, 'vaultItems', get().vaultItems, KEYS.vault, (merged) => set({ vaultItems: merged }));
 
       saveConfirmedSet(nextConfirmed);
       scheduleMetadataSnapshotPush(get);
@@ -1310,7 +1313,21 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     if (isConfigured) {
       await client.auth.signOut().catch(() => {});
     }
-    set({ userEmail: null, userId: null, syncStatus: 'local_ready' });
+    if (typeof window !== 'undefined') {
+      Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+    }
+    set({
+      userEmail: null,
+      userId: null,
+      syncStatus: 'local_ready',
+      accounts: [],
+      entries: [],
+      dues: [],
+      cards: [],
+      sheets: [],
+      notes: [],
+      vaultItems: [],
+    });
     get().logSecurityEvent('Cloud Account Signed Out', prevEmail ? `Signed out ${prevEmail}` : 'Session ended');
   },
 
@@ -1701,34 +1718,7 @@ async function deleteCloudRow(table: string, id: string) {
   } catch {}
 }
 
-function scheduleMetadataSnapshotPush(getState: () => V2StoreState) {
-  if (typeof window === 'undefined') return;
-  if (metadataPushTimer) clearTimeout(metadataPushTimer);
-  metadataPushTimer = setTimeout(async () => {
-    const { client, isConfigured } = getSupabaseV2Client();
-    if (!isConfigured) return;
-    try {
-      const { data: sessionData } = await client.auth.getSession();
-      if (!sessionData?.session?.user) return;
-      const st = getState();
-      await client.auth.updateUser({
-        data: {
-          rb_v2_cloud_snapshot: {
-            updatedAt: new Date().toISOString(),
-            workspace: st.workspace,
-            accounts: st.accounts,
-            entries: st.entries,
-            dues: st.dues,
-            cards: st.cards,
-            sheets: st.sheets,
-            notes: st.notes,
-            vaultItems: st.vaultItems,
-            deletedIds: Array.from(getDeletedSet()),
-          },
-        },
-      });
-    } catch {}
-  }, 350);
+function scheduleMetadataSnapshotPush(_getState?: () => V2StoreState) {
+  // Intentionally no-op: Writing entire workspace snapshot into user_metadata bloats the Supabase JWT
+  // causing HTTP 431 (Request Header Fields Too Large). PostgreSQL tables are the source of truth.
 }
-
-let metadataPushTimer: ReturnType<typeof setTimeout> | null = null;

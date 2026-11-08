@@ -368,22 +368,25 @@ export function DuesUdharModule() {
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    {due.phone && isReceivable && remaining > 0 && (
-                      <a
-                        href={`https://wa.me/91${due.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                          `Namaste ${due.party_name}, this is a gentle reminder regarding your pending balance of ${formatINRFromPaise(
-                            remaining
-                          )} in Record Book. Thank you!`
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/80 bg-emerald-50/70 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
-                        title="Send WhatsApp Payment Reminder"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
-                        <span className="hidden sm:inline">WhatsApp</span>
-                      </a>
-                    )}
+                    {due.phone && isReceivable && remaining > 0 && (() => {
+                      const cleanPhone = due.phone.replace(/\D/g, '').replace(/^91/, '');
+                      return (
+                        <a
+                          href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(
+                            `Namaste ${due.party_name}, this is a gentle reminder regarding your pending balance of ${formatINRFromPaise(
+                              remaining
+                            )} in Record Book. Thank you!`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/80 bg-emerald-50/70 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                          title="Send WhatsApp Payment Reminder"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+                          <span className="hidden sm:inline">WhatsApp</span>
+                        </a>
+                      );
+                    })()}
 
                     {remaining > 0 ? (
                       <Button

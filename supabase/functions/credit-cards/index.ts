@@ -2,7 +2,7 @@
 // CRUD for v2_credit_cards with spend/bill-payment actions. Auth required.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { err, ok } from '../_shared/types.ts';
+import { err, handleCors, ok } from '../_shared/types.ts';
 import { getAuthContext } from '../_shared/auth.ts';
 import {
   isPaise,
@@ -15,6 +15,9 @@ import {
 } from '../_shared/validation.ts';
 
 Deno.serve(async (req: Request) => {
+  const corsRes = handleCors(req);
+  if (corsRes) return corsRes;
+
   try {
     const { userId, workspaceId, client } = await getAuthContext(req);
 

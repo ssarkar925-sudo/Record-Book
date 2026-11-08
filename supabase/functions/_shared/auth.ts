@@ -13,12 +13,16 @@ export interface AuthContext {
 export async function getAuthContext(req: Request): Promise<AuthContext> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-  const client = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+  const client = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: authHeader ? { Authorization: authHeader } : {},
+    },
+  });
 
   const {
     data: { user },
@@ -30,13 +34,32 @@ export async function getAuthContext(req: Request): Promise<AuthContext> {
   }
 
   // Resolve (or create) the single canonical workspace for this owner.
-  const { data: workspaceId, error: wsError } = await client.rpc(
+  let resolvedWsId: string | null = null;
+  const { data: rpcData, error: wsError } = await client.rpc(
     'get_or_create_v2_workspace'
   );
 
-  if (wsError || !workspaceId) {
+  if (!wsError && rpcData) {
+    resolvedWsId = typeof rpcData === 'object' && rpcData !== null && 'id' in rpcData
+      ? (rpcData as any).id
+      : (typeof rpcData === 'string' ? rpcData : null);
+  }
+
+  // Fallback to direct query if RPC returned non-standard format
+  if (!resolvedWsId) {
+    const { data: wsRows } = await client
+      .from('v2_workspaces')
+      .select('id')
+      .eq('owner_id', user.id)
+      .limit(1);
+    if (wsRows && wsRows[0]?.id) {
+      resolvedWsId = wsRows[0].id;
+    }
+  }
+
+  if (!resolvedWsId) {
     throw new Error('WORKSPACE_UNAVAILABLE');
   }
 
-  return { userId: user.id, workspaceId, client };
+  return { userId: user.id, workspaceId: resolvedWsId, client };
 }

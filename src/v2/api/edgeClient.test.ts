@@ -63,6 +63,7 @@ test('edgeClient: accountsApi create posts to correct endpoint', async () => {
     name: 'Test Account',
     account_type: 'savings' as const,
     balance_paise: 100000,
+    is_default: false,
     scope: 'personal' as const,
   };
 
@@ -213,7 +214,7 @@ test('edgeClient: throws on HTTP error', async () => {
   global.fetch = mockFetch;
 
   try {
-    await edgeApi.accounts.create({ name: '', account_type: 'invalid', balance_paise: -1, scope: 'business' });
+    await edgeApi.accounts.create({ name: '', account_type: 'invalid' as any, balance_paise: -1, is_default: false, scope: 'business' });
     assert.fail('Should have thrown');
   } catch (err: any) {
     assert.ok(err.message.includes('Validation failed'));

@@ -65,16 +65,36 @@ export interface SummaryResponse {
   computedAt: string;
 }
 
+export const corsHeaders: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+};
+
+export function handleCors(req: Request): Response | null {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+  return null;
+}
+
 export function ok<T>(data: T, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(data), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json', ...init.headers },
+    status: init.status ?? 200,
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+      ...init.headers,
+    },
   });
 }
 
 export function err(message: string, status = 400): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
   });
 }

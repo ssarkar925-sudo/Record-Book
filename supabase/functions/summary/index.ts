@@ -4,9 +4,11 @@
 // match whether computed locally or server-side.
 
 import { computeSummary } from '../_shared/engine.ts';
-import { err, ok, type SummaryRequest, type SummaryResponse } from '../_shared/types.ts';
+import { err, handleCors, ok, type SummaryRequest, type SummaryResponse } from '../_shared/types.ts';
 
 Deno.serve(async (req: Request) => {
+  const corsRes = handleCors(req);
+  if (corsRes) return corsRes;
   if (req.method !== 'POST') {
     return new Response(null, { status: 405 });
   }

@@ -2,9 +2,12 @@
 // GET /health — system readiness, schema version, and stack telemetry.
 // Public endpoint, no auth required.
 
-import { ok } from '../_shared/types.ts';
+import { handleCors, ok } from '../_shared/types.ts';
 
 Deno.serve(async (req: Request) => {
+  const corsRes = handleCors(req);
+  if (corsRes) return corsRes;
+
   if (req.method !== 'GET') {
     return new Response(null, { status: 405 });
   }

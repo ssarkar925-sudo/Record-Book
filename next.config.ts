@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns', 'xlsx'],

@@ -2,6 +2,8 @@
 // Rejects malformed data before it touches PostgreSQL — the trust-boundary
 // check the client cannot be trusted to perform on its own.
 
+import { corsHeaders } from './types.ts';
+
 export const VALID_SPHERES = ['business', 'personal', 'family'] as const;
 export const VALID_ACCOUNT_TYPES = ['savings', 'current', 'cash', 'upi', 'od_cc'] as const;
 export const VALID_ENTRY_TYPES = [
@@ -54,24 +56,24 @@ export function toResponse(e: unknown): Response {
   if (e instanceof ValidationError) {
     return new Response(
       JSON.stringify({ error: e.message, code: 'VALIDATION_FAILED' }),
-      { status: e.status, headers: { 'Content-Type': 'application/json' } }
+      { status: e.status, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
   if (e instanceof Error && e.message === 'UNAUTHORIZED') {
     return new Response(
       JSON.stringify({ error: 'Authentication required', code: 'UNAUTHORIZED' }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } }
+      { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
   if (e instanceof Error && e.message === 'WORKSPACE_UNAVAILABLE') {
     return new Response(
       JSON.stringify({ error: 'Workspace unavailable', code: 'WORKSPACE_UNAVAILABLE' }),
-      { status: 503, headers: { 'Content-Type': 'application/json' } }
+      { status: 503, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
   console.error('Unhandled function error:', e);
   return new Response(
     JSON.stringify({ error: 'Internal server error', code: 'INTERNAL' }),
-    { status: 500, headers: { 'Content-Type': 'application/json' } }
+    { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
   );
 }

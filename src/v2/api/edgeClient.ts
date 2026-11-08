@@ -26,14 +26,11 @@ function getEdgeBaseUrl(): string {
   return 'https://xelxvojazyscbounzajs.supabase.co/functions/v1';
 }
 
+import { getSupabaseV2Client } from '@/v2/supabaseClient';
+
 async function getAuthToken(): Promise<string | null> {
-  // Get the current Supabase auth session token
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xelxvojazyscbounzajs.supabase.co';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_1BG03u4BQDYfpV3nw99WKw_z0qen4Gi';
-  const client = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: true, autoRefreshToken: true },
-  });
+  const { client, isConfigured } = getSupabaseV2Client();
+  if (!isConfigured) return null;
   const { data: { session } } = await client.auth.getSession();
   return session?.access_token ?? null;
 }

@@ -19,6 +19,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useV2Store } from '../store/useV2StoreEdge';
+import type { ModuleId } from '@/types/v2';
 import {
   computeOverviewMetrics,
   formatINRFromPaise,
@@ -155,12 +156,19 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
       : 0;
 
   // Module data for shortcuts
-  const moduleShortcuts = [
-    { id: 'notes', icon: StickyNote, color: 'amber', label: 'Smart Notes', count: notes.filter((n) => !n.is_trashed).length, desc: 'Auto-summed checklists' },
-    { id: 'sheets', icon: FileSpreadsheet, color: 'sky', label: 'Registers', count: sheets.length, desc: 'Custom GST & stock grids' },
-    { id: 'vault', icon: Lock, color: 'indigo', label: 'Encrypted Vault', count: vaultItems.length, desc: 'AES-256 PINs & passwords' },
-    { id: 'reports', icon: ShieldCheck, color: 'emerald', label: 'Security & P&L', count: 1, desc: 'PIN Lock, Audit & Backup' },
-  ];
+  const moduleShortcuts: Array<{
+    id: ModuleId;
+    icon: React.ComponentType<{ className?: string }>;
+    color: string;
+    label: string;
+    count: number;
+    desc: string;
+  }> = [
+      { id: 'notes', icon: StickyNote, color: 'amber', label: 'Smart Notes', count: notes.filter((n) => !n.is_trashed).length, desc: 'Auto-summed checklists' },
+      { id: 'sheets', icon: FileSpreadsheet, color: 'sky', label: 'Registers', count: sheets.length, desc: 'Custom GST & stock grids' },
+      { id: 'vault', icon: Lock, color: 'indigo', label: 'Encrypted Vault', count: vaultItems.length, desc: 'AES-256 PINs & passwords' },
+      { id: 'reports', icon: ShieldCheck, color: 'emerald', label: 'Security & P&L', count: 1, desc: 'PIN Lock, Audit & Backup' },
+    ];
 
   return (
     <div className="space-y-6">
@@ -417,13 +425,12 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-xs font-bold ${
-                              isIn
-                                ? 'border-emerald-200 bg-[#ECFDF5] text-emerald-700'
-                                : isTransfer
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-xs font-bold ${isIn
+                              ? 'border-emerald-200 bg-[#ECFDF5] text-emerald-700'
+                              : isTransfer
                                 ? 'border-sky-200 bg-[#EFF6FF] text-sky-700'
                                 : 'border-rose-200 bg-[#FFF1F2] text-rose-700'
-                            }`}
+                              }`}
                           >
                             {isIn ? '+' : isTransfer ? '⇄' : '−'}
                           </div>
@@ -439,13 +446,12 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
                           </div>
                         </div>
                         <TabularNums
-                          className={`ml-3 shrink-0 text-sm font-bold ${
-                            isIn
-                              ? 'text-emerald-700'
-                              : isTransfer
+                          className={`ml-3 shrink-0 text-sm font-bold ${isIn
+                            ? 'text-emerald-700'
+                            : isTransfer
                               ? 'text-sky-700'
                               : 'text-rose-700'
-                          }`}
+                            }`}
                           value={tx.amount_paise}
                           masked={privacyMasked}
                           showSign={isIn || isTransfer}
@@ -597,11 +603,10 @@ export function OverviewModule({ onOpenQuickEntry }: OverviewModuleProps) {
                   return (
                     <div
                       key={due.id}
-                      className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 ${
-                        isRec
-                          ? 'border-amber-200 bg-[#FFFBEB]/60'
-                          : 'border-rose-200 bg-[#FFF1F2]/60'
-                      }`}
+                      className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 ${isRec
+                        ? 'border-amber-200 bg-[#FFFBEB]/60'
+                        : 'border-rose-200 bg-[#FFF1F2]/60'
+                        }`}
                     >
                       <div className="min-w-0">
                         <p className="truncate text-xs font-bold text-slate-900">

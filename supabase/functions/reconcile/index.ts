@@ -6,13 +6,15 @@
 //   3. Awaited upserts with confirmed cloud-id tracking
 //   4. Dual-channel realtime broadcast (client-side)
 
-import { err, ok, type ReconcileRequest, type ReconcileResponse } from '../_shared/types.ts';
+import { err, handleCors, ok, type ReconcileRequest, type ReconcileResponse } from '../_shared/types.ts';
 
 function byUpdated(a: { updated_at: string }, b: { updated_at: string }): number {
   return a.updated_at < b.updated_at ? -1 : a.updated_at > b.updated_at ? 1 : 0;
 }
 
 Deno.serve(async (req: Request) => {
+  const corsRes = handleCors(req);
+  if (corsRes) return corsRes;
   if (req.method !== 'POST') {
     return new Response(null, { status: 405 });
   }

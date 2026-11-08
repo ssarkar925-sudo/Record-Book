@@ -122,6 +122,11 @@ export function V2AppShell() {
       if (ALL_MODULES.includes(rawHash)) {
         setActiveModule(rawHash);
       }
+      if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('[SW] Registration failed:', err);
+        });
+      }
     }
   }, [hydrateFromStorageAndCloud, setActiveModule]);
 
@@ -221,7 +226,7 @@ export function V2AppShell() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  });
+  }, [isAppLocked, unlockPinInput]);
 
   // Global Ctrl+K / Cmd+K Spotlight Command Palette Listener
   useEffect(() => {
@@ -236,89 +241,92 @@ export function V2AppShell() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isAppLocked]);
 
+  if (isAppLocked) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#F8FAFC] px-4 py-12 text-[#0F172A]">
+        <DaylightToastContainer />
+        <div className="w-full max-w-md rounded-3xl border border-indigo-200 bg-white p-8 shadow-xl">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-200 bg-[#EEF2FF] text-indigo-700">
+            <Lock className="h-6 w-6" />
+          </div>
+          <h1 className="mt-5 text-center text-xl font-bold tracking-tight text-slate-900">
+            Record Book Locked
+          </h1>
+          <p className="mt-1 text-center text-xs text-slate-600">
+            Enter your 4-digit security PIN to unlock your financial workspace.
+          </p>
+
+          {/* 4-Digit Indicator Dots */}
+          <div className="my-6 flex items-center justify-center gap-3.5">
+            {[0, 1, 2, 3].map((idx) => {
+              const filled = unlockPinInput.length > idx;
+              return (
+                <div
+                  key={idx}
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-lg font-bold transition-all ${
+                    unlockError
+                      ? 'border-rose-400 bg-[#FFF1F2] text-rose-700'
+                      : filled
+                        ? 'border-indigo-500 bg-[#EEF2FF] text-indigo-900'
+                        : 'border-slate-200 bg-slate-50 text-slate-400'
+                  }`}
+                >
+                  {filled ? '●' : ''}
+                </div>
+              );
+            })}
+          </div>
+
+          {unlockError && (
+            <p className="mb-4 text-center text-xs font-semibold text-rose-600">
+              Incorrect security PIN. Please try again.
+            </p>
+          )}
+
+          {/* Numeric Keypad */}
+          <div className="grid grid-cols-3 gap-2.5">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+              <button
+                key={digit}
+                type="button"
+                onClick={() => handleDigitPress(digit)}
+                className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/70 font-mono text-lg font-bold text-slate-900 transition-colors hover:border-indigo-300 hover:bg-[#EEF2FF]"
+              >
+                {digit}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setUnlockPinInput('');
+                setUnlockError(false);
+              }}
+              className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDigitPress('0')}
+              className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/70 font-mono text-lg font-bold text-slate-900 transition-colors hover:border-indigo-300 hover:bg-[#EEF2FF]"
+            >
+              0
+            </button>
+            <button
+              type="button"
+              onClick={() => setUnlockPinInput((prev) => prev.slice(0, -1))}
+              className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] antialiased">
-      {/* Full-Screen Daylight Security Lock Overlay */}
-      {isAppLocked && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#F8FAFC] px-4 py-12 text-[#0F172A]">
-          <div className="w-full max-w-md rounded-3xl border border-indigo-200 bg-white p-8 shadow-xl">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-200 bg-[#EEF2FF] text-indigo-700">
-                <Lock className="h-6 w-6" />
-              </div>
-              <h1 className="mt-5 text-center text-xl font-bold tracking-tight text-slate-900">
-                Record Book Locked
-              </h1>
-              <p className="mt-1 text-center text-xs text-slate-600">
-                Enter your 4-digit security PIN to unlock your financial workspace.
-              </p>
-
-              {/* 4-Digit Indicator Dots */}
-              <div className="my-6 flex items-center justify-center gap-3.5">
-                {[0, 1, 2, 3].map((idx) => {
-                  const filled = unlockPinInput.length > idx;
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-lg font-bold transition-all ${
-                        unlockError
-                          ? 'border-rose-400 bg-[#FFF1F2] text-rose-700'
-                          : filled
-                            ? 'border-indigo-500 bg-[#EEF2FF] text-indigo-900'
-                            : 'border-slate-200 bg-slate-50 text-slate-400'
-                      }`}
-                    >
-                      {filled ? '●' : ''}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {unlockError && (
-                <p className="mb-4 text-center text-xs font-semibold text-rose-600">
-                  Incorrect security PIN. Please try again.
-                </p>
-              )}
-
-              {/* Numeric Keypad */}
-              <div className="grid grid-cols-3 gap-2.5">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                  <button
-                    key={digit}
-                    type="button"
-                    onClick={() => handleDigitPress(digit)}
-                    className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/70 font-mono text-lg font-bold text-slate-900 transition-colors hover:border-indigo-300 hover:bg-[#EEF2FF]"
-                  >
-                    {digit}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUnlockPinInput('');
-                    setUnlockError(false);
-                  }}
-                  className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDigitPress('0')}
-                  className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/70 font-mono text-lg font-bold text-slate-900 transition-colors hover:border-indigo-300 hover:bg-[#EEF2FF]"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUnlockPinInput((prev) => prev.slice(0, -1))}
-                  className="flex h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       {/* Sticky Daylight Top Bar */}
       <header className="sticky top-0 z-30 h-16 border-b border-slate-200/90 bg-white/95 backdrop-blur-md lg:pl-72">
         <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">

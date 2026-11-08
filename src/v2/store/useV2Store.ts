@@ -222,36 +222,9 @@ function recordTombstone(id: string) {
   saveJSON(KEYS.deletedIds, Array.from(s));
 }
 
-let metadataPushTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleMetadataSnapshotPush(getState: () => V2StoreState) {
-  if (typeof window === 'undefined') return;
-  if (metadataPushTimer) clearTimeout(metadataPushTimer);
-  metadataPushTimer = setTimeout(async () => {
-    const { client, isConfigured } = getSupabaseV2Client();
-    if (!isConfigured) return;
-    try {
-      const { data: sessionData } = await client.auth.getSession();
-      if (!sessionData?.session?.user) return;
-      const st = getState();
-      await client.auth.updateUser({
-        data: {
-          rb_v2_cloud_snapshot: {
-            updatedAt: new Date().toISOString(),
-            workspace: st.workspace,
-            accounts: st.accounts,
-            entries: st.entries,
-            dues: st.dues,
-            cards: st.cards,
-            sheets: st.sheets,
-            notes: st.notes,
-            vaultItems: st.vaultItems,
-            deletedIds: Array.from(getDeletedSet()),
-          },
-        },
-      });
-    } catch {}
-  }, 350);
+function scheduleMetadataSnapshotPush(_getState?: () => V2StoreState) {
+  // Intentionally no-op: Writing entire workspace snapshot into user_metadata bloats the Supabase JWT
+  // causing HTTP 431 (Request Header Fields Too Large). PostgreSQL tables are the source of truth.
 }
 
 async function upsertCloudRow(table: string, row: Record<string, any>) {
@@ -1193,7 +1166,21 @@ export const useV2Store = create<V2StoreState>((set, get) => ({
     if (isConfigured) {
       await client.auth.signOut().catch(() => {});
     }
-    set({ userEmail: null, userId: null, syncStatus: 'local_ready' });
+    if (typeof window !== 'undefined') {
+      Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+    }
+    set({
+      userEmail: null,
+      userId: null,
+      syncStatus: 'local_ready',
+      accounts: [],
+      entries: [],
+      dues: [],
+      cards: [],
+      sheets: [],
+      notes: [],
+      vaultItems: [],
+    });
     get().logSecurityEvent('Cloud Account Signed Out', prevEmail ? `Signed out ${prevEmail}` : 'Session ended');
   },
 
