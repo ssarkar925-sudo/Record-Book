@@ -18,12 +18,7 @@ additional_redirect_urls = ["capacitor://localhost", "http://localhost:3000"]
 enable_signup = true
 double_confirm_changes = false
 
-[functions]
-  # All functions share the same JWT secret from the project
-  verify_jwt = true
-
-  # Function-specific env (overridden in production by Supabase dashboard)
-  [functions.health]
+[functions.health]
   verify_jwt = false  # public endpoint
 
   [functions.reconcile]

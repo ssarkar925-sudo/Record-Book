@@ -21,8 +21,9 @@ function getEdgeBaseUrl(): string {
   if (envUrl && !envUrl.includes('your-project-ref')) {
     return `${envUrl.replace(/\/$/, '')}/functions/v1`;
   }
-  // Local Supabase CLI default
-  return 'http://127.0.0.1:54321/functions/v1';
+  // Keep the Edge Function endpoint aligned with the production client
+  // fallback. Browsers on Vercel cannot reach a visitor's localhost.
+  return 'https://xelxvojazyscbounzajs.supabase.co/functions/v1';
 }
 
 async function getAuthToken(): Promise<string | null> {
