@@ -1,30 +1,27 @@
 1:"$Sreact.fragment"
-2:I[7121,[],""]
-3:"static/chunks/app/error-7063cc323884941d.js"
-4:I[2736,["39","$3"],"default"]
-5:I[4581,[],""]
-7:I[1304,[],"ClientPageRoot"]
-8:"static/chunks/c15bf2b0-c080c4e45c5fb392.js"
-9:"static/chunks/44530001-0e712c7221fec80e.js"
-a:"static/chunks/590-b39fc7a818e3e3ee.js"
-b:"static/chunks/app/page-d84dbbf69f566234.js"
-c:I[5724,["592","$8","730","$9","590","$a","974","$b"],"default"]
-f:I[484,[],"OutletBoundary"]
-10:"$Sreact.suspense"
-12:"ViewportBoundary"
-13:I[484,[],"$12"]
-15:"MetadataBoundary"
-16:I[484,[],"$15"]
-18:"static/chunks/app/global-error-a1f5c3aeaf82475f.js"
-19:I[6719,["219","$18"],"default"]
-:HL["/_next/static/media/558ca1a6aa3cb55e-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/636a5ac981f94f8b-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/css/35f0ef84d39b48ea.css","style"]
-6:[["children",{"s":"__PAGE__","h":512,"d":{"r":["$","$1","c",{"children":[["$","$L7",null,{"Component":"$c","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@d","$@e"]}}],null,["$","$Lf",null,{"children":["$","$10",null,{"name":"Next.MetadataOutlet","children":"$@11"}]}]]}],"p":false,"v":null}}]]
-0:{"P":null,"c":["",""],"q":"","i":false,"t":{"t":{"s":"","h":528,"d":{"r":["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/35f0ef84d39b48ea.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"en","className":"h-full __variable_64a611 __variable_bfdb28","children":["$","body",null,{"className":"__className_64a611 min-h-full bg-[#F8FAFC] text-[#0F172A] antialiased selection:bg-indigo-600 selection:text-white","children":["$","$L2",null,{"parallelRouterKey":"children","error":"$4","errorStyles":[],"errorScripts":null,"template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}]}]]}],"p":false,"v":null},"c":"$Q6"},"h":{"r":["$","$1","h",{"children":[null,["$","$L13",null,{"children":"$L14"}],["$","$L16",null,{"children":[["$","div",null,{"hidden":true,"children":["$","$10",null,{"name":"Next.Metadata","children":"$L17"}]}],null]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}],"p":false,"v":null}},"m":"$undefined","G":["$19",[]],"S":true,"r":"$undefined","s":"$undefined","a":"$undefined","l":"$undefined","p":"$undefined","d":"$undefined","b":"29H1jNOu_ZDey0MLqWoQe"}
-d:{}
-e:"$6:0:1:d:r:props:children:0:props:serverProvidedParams:params"
-14:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1, viewport-fit=cover"}],["$","meta","2",{"name":"theme-color","content":"#F8FAFC"}]]
-1a:I[6869,[],"IconMark"]
-11:null
-17:[["$","title","0",{"children":"Record Book V2 — Daylight Financial & Wealth Suite"}],["$","meta","1",{"name":"description","content":"Modern Daylight-Only 9-module financial ledger, bank & cash management, udhar dues, credit cards, custom sheets, smart ₹ checklists, and AES-256 vault."}],["$","link","2",{"rel":"manifest","href":"/manifest.json","crossOrigin":"$undefined"}],["$","link","3",{"rel":"icon","href":"/icon-192.svg"}],["$","link","4",{"rel":"apple-touch-icon","href":"/icon-192.svg"}],["$","$L1a","5",{}]]
+2:I[57121,[],""]
+3:"static/chunks/app/error-9a54d40f2bee5de1.js"
+4:I[17267,["39","$3"],"default"]
+5:I[74581,[],""]
+7:I[61304,[],"ClientPageRoot"]
+8:"static/chunks/44530001-a79ba83ccdeed0ce.js"
+9:"static/chunks/335-a855a81ec50fdb40.js"
+a:"static/chunks/app/page-c906f0782071df22.js"
+b:I[38764,["730","$8","335","$9","974","$a"],"default"]
+e:I[90484,[],"OutletBoundary"]
+f:"$Sreact.suspense"
+11:"ViewportBoundary"
+12:I[90484,[],"$11"]
+14:"MetadataBoundary"
+15:I[90484,[],"$14"]
+17:"static/chunks/app/global-error-8b1f52fa3d2a7894.js"
+18:I[26719,["219","$17"],"default"]
+:HL["/_next/static/css/867a9beda29f610c.css","style"]
+6:[["children",{"s":"__PAGE__","h":512,"d":{"r":["$","$1","c",{"children":[["$","$L7",null,{"Component":"$b","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@c","$@d"]}}],null,["$","$Le",null,{"children":["$","$f",null,{"name":"Next.MetadataOutlet","children":"$@10"}]}]]}],"p":false,"v":null}}]]
+0:{"P":null,"c":["",""],"q":"","i":false,"t":{"t":{"s":"","h":528,"d":{"r":["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/867a9beda29f610c.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"en","className":"h-full __variable_64a611 __variable_bfdb28","children":["$","body",null,{"className":"__className_64a611 min-h-full bg-[#F8FAFC] text-[#0F172A] antialiased selection:bg-indigo-600 selection:text-white","children":["$","$L2",null,{"parallelRouterKey":"children","error":"$4","errorStyles":[],"errorScripts":null,"template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}]}]]}],"p":false,"v":null},"c":"$Q6"},"h":{"r":["$","$1","h",{"children":[null,["$","$L12",null,{"children":"$L13"}],["$","$L15",null,{"children":[["$","div",null,{"hidden":true,"children":["$","$f",null,{"name":"Next.Metadata","children":"$L16"}]}],null]}],null]}],"p":false,"v":null}},"m":"$undefined","G":["$18",[]],"S":true,"r":"$undefined","s":"$undefined","a":"$undefined","l":"$undefined","p":"$undefined","d":"$undefined","b":"_UPD5TwlwH9kg7JL3nh0e"}
+c:{}
+d:"$6:0:1:d:r:props:children:0:props:serverProvidedParams:params"
+13:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1, viewport-fit=cover"}],["$","meta","2",{"name":"theme-color","content":"#F8FAFC"}]]
+19:I[86869,[],"IconMark"]
+10:null
+16:[["$","title","0",{"children":"Record Book V2 — Daylight Financial & Wealth Suite"}],["$","meta","1",{"name":"description","content":"Modern Daylight-Only 9-module financial ledger, bank & cash management, udhar dues, credit cards, custom sheets, smart ₹ checklists, and AES-256 vault."}],["$","link","2",{"rel":"manifest","href":"/manifest.json","crossOrigin":"$undefined"}],["$","link","3",{"rel":"icon","href":"/icon-192.svg"}],["$","link","4",{"rel":"apple-touch-icon","href":"/icon-192.svg"}],["$","$L19","5",{}]]
