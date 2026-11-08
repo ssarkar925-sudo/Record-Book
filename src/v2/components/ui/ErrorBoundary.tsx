@@ -108,8 +108,21 @@ export class LayoutErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      // Render children without layout projection
-      return <>{this.props.children}</>;
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-6 text-center text-slate-800">
+          <p className="text-sm font-semibold">A view rendering issue occurred.</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700"
+          >
+            Retry View
+          </button>
+        </div>
+      );
     }
 
     return this.props.children;

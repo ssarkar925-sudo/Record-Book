@@ -343,49 +343,23 @@ export function PremiumSidebar({ isOpen, onClose }: PremiumSidebarProps) {
   };
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.aside
-        initial={false}
-        animate={isOpen ? 'open' : 'closed'}
-        exit="closed"
-        variants={sidebarVariants}
-        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-        className="fixed inset-y-0 left-0 z-50 flex flex-col bg-white/95 backdrop-blur-xl border-r border-slate-200/80 overflow-hidden lg:relative lg:z-30 lg:border-r lg:bg-white/95"
-        style={{ width: collapsed ? '72px' : '280px' }}
+    <>
+      {/* Overlay for mobile */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-xs lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar: Fixed left, always visible on desktop (w-72), slide-over drawer on mobile */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-slate-200/80 bg-white/95 backdrop-blur-xl transition-transform duration-300 ease-in-out lg:z-30 lg:translate-x-0 ${
+          isOpen ? 'translate-x-0 shadow-2xl lg:shadow-none' : '-translate-x-full lg:translate-x-0'
+        }`}
         aria-label="Navigation sidebar"
       >
-        {/* Collapse/Expand Trigger */}
-        <button
-          type="button"
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/95 shadow-lg transition-all hover:border-indigo-300 hover:bg-indigo-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 lg:hidden"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!collapsed}
-        >
-          <motion.div
-            animate={{ rotate: collapsed ? 180 : 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          >
-            {collapsed ? (
-              <ChevronRight className="h-5 w-5 text-slate-600" />
-            ) : (
-              <ChevronLeft className="h-5 w-5 text-slate-600" />
-            )}
-          </motion.div>
-        </button>
-
-        {/* Overlay for mobile */}
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm lg:hidden"
-            onClick={onClose}
-            aria-hidden="true"
-          />
-        )}
-
         <div className="flex flex-col h-full overflow-hidden">
           {/* Header / Brand */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-slate-200/80 shrink-0">
@@ -725,7 +699,7 @@ export function PremiumSidebar({ isOpen, onClose }: PremiumSidebarProps) {
             )}
           </motion.div>
         </div>
-      </motion.aside>
+      </aside>
 
       {/* Modals */}
       {/* Command Palette */}
@@ -1138,6 +1112,6 @@ export function PremiumSidebar({ isOpen, onClose }: PremiumSidebarProps) {
           </div>
         </PremiumModal>
       )}
-    </AnimatePresence>
+    </>
   );
 }

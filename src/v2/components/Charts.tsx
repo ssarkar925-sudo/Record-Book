@@ -135,7 +135,7 @@ export function NetWorthTrendChart({ data, privacyMasked, colorKey = 'indigo', t
               dot={false}
               activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
               animationDuration={800}
-              animationEasing="easeOut"
+              animationEasing="ease-out"
             />
             <Line
               type="monotone"
@@ -146,7 +146,7 @@ export function NetWorthTrendChart({ data, privacyMasked, colorKey = 'indigo', t
               strokeDasharray="4 4"
               dot={false}
               animationDuration={800}
-              animationEasing="easeOut"
+              animationEasing="ease-out"
             />
             <Line
               type="monotone"
@@ -157,7 +157,7 @@ export function NetWorthTrendChart({ data, privacyMasked, colorKey = 'indigo', t
               strokeDasharray="4 4"
               dot={false}
               animationDuration={800}
-              animationEasing="easeOut"
+              animationEasing="ease-out"
             />
             <Line
               type="monotone"
@@ -168,7 +168,7 @@ export function NetWorthTrendChart({ data, privacyMasked, colorKey = 'indigo', t
               strokeDasharray="4 4"
               dot={false}
               animationDuration={800}
-              animationEasing="easeOut"
+              animationEasing="ease-out"
             />
           </ComposedChart>
         </ResponsiveContainer>
@@ -223,7 +223,7 @@ export function ExpenseBreakdownChart({ data, privacyMasked, title = 'Expense Br
               startAngle={90}
               endAngle={450}
               animationDuration={1000}
-              animationEasing="easeOut"
+              animationEasing="ease-out"
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />

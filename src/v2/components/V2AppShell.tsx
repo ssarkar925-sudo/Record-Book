@@ -119,7 +119,7 @@ export function V2AppShell() {
     hydrateFromStorageAndCloud();
     if (typeof window !== 'undefined') {
       const rawHash = window.location.hash.replace('#', '') as ModuleId;
-      if (ALL_MODULES.some((m) => m.id === rawHash)) {
+      if (ALL_MODULES.includes(rawHash)) {
         setActiveModule(rawHash);
       }
     }
@@ -536,23 +536,29 @@ export function V2AppShell() {
       >
         <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
           {MOBILE_PRIMARY_IDS.map((modId) => {
-            const item = ALL_MODULES.find((m) => m.id === modId)!;
-            const Icon = ({ className }) => {
-              // Map module ID to icon component
-              const icons: Record<string, React.ComponentType<{ className?: string }>> = {
-                overview: LayoutDashboard,
-                bank: Building2,
-                expenses: ArrowLeftRight,
-                dues: HandCoins,
-                cards: CreditCard,
-                sheets: FileSpreadsheet,
-                notes: StickyNote,
-                vault: Lock,
-                reports: ShieldCheck,
-              };
-              const Comp = icons[modId] || LayoutDashboard;
-              return <Comp className={className} />;
+            const moduleLabels: Record<ModuleId, string> = {
+              overview: 'Overview',
+              bank: 'Bank',
+              expenses: 'Cashbook',
+              dues: 'Dues',
+              cards: 'Cards',
+              sheets: 'Registers',
+              notes: 'Notes',
+              vault: 'Vault',
+              reports: 'Security',
             };
+            const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+              overview: LayoutDashboard,
+              bank: Building2,
+              expenses: ArrowLeftRight,
+              dues: HandCoins,
+              cards: CreditCard,
+              sheets: FileSpreadsheet,
+              notes: StickyNote,
+              vault: Lock,
+              reports: ShieldCheck,
+            };
+            const Comp = icons[modId] || LayoutDashboard;
             const isActive = activeModule === modId;
             return (
               <button
@@ -567,8 +573,8 @@ export function V2AppShell() {
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                <span className="mt-0.5 truncate">{item}</span>
+                <Comp className="h-4 w-4" />
+                <span className="mt-0.5 truncate">{moduleLabels[modId] || modId}</span>
               </button>
             );
           })}
